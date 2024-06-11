@@ -257,6 +257,7 @@ updates:
     time: "06:00"
 
 - package-ecosystem: "gomod"
+
   directory: "/contrib/golang/router/cluster_specifier/test/test_data/simple"
   schedule:
     interval: daily
