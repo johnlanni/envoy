@@ -132,6 +132,10 @@ extern void envoyGoFilterOnHttpDestroy(httpRequest* r, GoUint64 reason);
 // github.com/envoyproxy/envoy/contrib/golang/filters/http/source/go/pkg/http.envoyGoRequestSemaDec
 extern void envoyGoRequestSemaDec(httpRequest* r);
 
+// go:linkname envoyGoFilterCleanUp
+// github.com/envoyproxy/envoy/contrib/golang/filters/http/source/go/pkg/http.envoyGoFilterCleanUp
+extern void envoyGoFilterCleanUp();
+
 // go:linkname envoyGoOnClusterSpecify
 // github.com/envoyproxy/envoy/contrib/golang/router/cluster_specifier/source/go/pkg/cluster_specifier.envoyGoOnClusterSpecify
 extern GoInt64 envoyGoOnClusterSpecify(GoUint64 pluginPtr,  // NOLINT(readability-identifier-naming)
