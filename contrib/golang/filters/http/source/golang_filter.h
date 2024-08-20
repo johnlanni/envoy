@@ -223,6 +223,7 @@ public:
   }
 
   // Http::StreamFilterBase
+  void onStreamComplete() override;
   void onDestroy() ABSL_LOCKS_EXCLUDED(mutex_) override;
   Http::LocalErrorStatus onLocalReply(const LocalReplyData&) override;
 
@@ -257,8 +258,6 @@ public:
            const Http::ResponseTrailerMap* response_trailers,
            const StreamInfo::StreamInfo& stream_info,
            Envoy::AccessLog::AccessLogType access_log_type) override;
-
-  void onStreamComplete() override {}
 
   CAPIStatus clearRouteCache();
   CAPIStatus continueStatus(ProcessorState& state, GolangStatus status);
