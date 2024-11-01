@@ -259,7 +259,8 @@ public:
            const StreamInfo::StreamInfo& stream_info,
            Envoy::AccessLog::AccessLogType access_log_type) override;
 
-  CAPIStatus clearRouteCache();
+  CAPIStatus clearRouteCache(bool refresh);
+  void clearRouteCacheInternal(bool refresh);
   CAPIStatus continueStatus(ProcessorState& state, GolangStatus status);
 
   CAPIStatus sendLocalReply(ProcessorState& state, Http::Code response_code, std::string body_text,
