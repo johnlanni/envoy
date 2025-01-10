@@ -14,7 +14,7 @@ envoy_cc_test(
     name = "config_test",
     srcs = ["config_test.cc"],
     data = [
-        "//contrib/golang/filters/http/test/test_data/passthrough:filter.so",
+        "//contrib/golang/filters/http/test/test_data:plugins.so",
     ],
     deps = [
         "//contrib/golang/filters/http/source:config",
@@ -27,8 +27,7 @@ envoy_cc_test(
     name = "golang_filter_test",
     srcs = ["golang_filter_test.cc"],
     data = [
-        "//contrib/golang/filters/http/test/test_data/passthrough:filter.so",
-        "//contrib/golang/filters/http/test/test_data/routeconfig:filter.so",
+        "//contrib/golang/filters/http/test/test_data:plugins.so",
     ],
     deps = [
         "//contrib/golang/filters/http/source:golang_filter_lib",
@@ -50,16 +49,7 @@ envoy_cc_test(
     name = "golang_integration_test",
     srcs = ["golang_integration_test.cc"],
     data = [
-        "//contrib/golang/filters/http/test/test_data/access_log:filter.so",
-        "//contrib/golang/filters/http/test/test_data/action:filter.so",
-        "//contrib/golang/filters/http/test/test_data/add_data:filter.so",
-        "//contrib/golang/filters/http/test/test_data/basic:filter.so",
-        "//contrib/golang/filters/http/test/test_data/buffer:filter.so",
-        "//contrib/golang/filters/http/test/test_data/echo:filter.so",
-        "//contrib/golang/filters/http/test/test_data/metric:filter.so",
-        "//contrib/golang/filters/http/test/test_data/passthrough:filter.so",
-        "//contrib/golang/filters/http/test/test_data/property:filter.so",
-        "//contrib/golang/filters/http/test/test_data/routeconfig:filter.so",
+        "//contrib/golang/filters/http/test/test_data:plugins.so",
     ],
     deps = [
         "//contrib/golang/filters/http/source:config",
@@ -104,7 +94,7 @@ envoy_cc_test(
     size = "large",
     srcs = ["websocket_integration_test.cc"],
     data = [
-        "//contrib/golang/filters/http/test/test_data/websocket:filter.so",
+        "//contrib/golang/filters/http/test/test_data:plugins.so",
     ],
     tags = [
         "cpu:3",
