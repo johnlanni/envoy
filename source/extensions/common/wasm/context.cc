@@ -1906,8 +1906,15 @@ WasmResult Context::sendLocalResponse(uint32_t response_code, std::string_view b
       if (local_reply_sent_) {
         return;
       }
+#if defined(HIGRESS)
+      auto wasm_details = absl::StrFormat("via_wasm%s%s", plugin_ ? "::" + plugin()->name_ : "",
+                                          details.empty() ? "" : "::" + details);
+      decoder_callbacks_->sendLocalReply(static_cast<Envoy::Http::Code>(response_code), body_text,
+                                         modify_headers, grpc_status, wasm_details);
+#else
       decoder_callbacks_->sendLocalReply(static_cast<Envoy::Http::Code>(response_code), body_text,
                                          modify_headers, grpc_status, details);
+#endif
       local_reply_sent_ = true;
     });
   }
