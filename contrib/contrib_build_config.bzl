@@ -7,8 +7,8 @@ CONTRIB_EXTENSIONS = {
     "envoy.filters.http.dynamo":                                "//contrib/dynamo/filters/http/source:config",
     "envoy.filters.http.http_dubbo_transcoder":                 "//contrib/http_dubbo_transcoder/filters/http/source:config",
     "envoy.filters.http.golang":                                "//contrib/golang/filters/http/source:config",
-    "envoy.filters.http.language":                              "//contrib/language/filters/http/source:config_lib"
-    "envoy.filters.http.mcp_sse_stateful_session":              "//contrib/mcp_sse_stateful_session/filters/http/source:config",,
+    "envoy.filters.http.language":                              "//contrib/language/filters/http/source:config_lib",
+    "envoy.filters.http.mcp_sse_stateful_session":              "//contrib/mcp_sse_stateful_session/filters/http/source:config",
     "envoy.filters.http.squash":                                "//contrib/squash/filters/http/source:config",
     "envoy.filters.http.sxg":                                   "//contrib/sxg/filters/http/source:config",
     "envoy.filters.http.llm_inference":                         "//contrib/llm_inference/filters/http/source:config",
