@@ -456,10 +456,17 @@ WasmResult serializeValue(Filters::Common::Expr::CelValue value, std::string* re
   return WasmResult::SerializationFailure;
 }
 
+#if defined(HIGRESS)
+#define PROPERTY_TOKENS(_f)                                                                        \
+  _f(NODE) _f(LISTENER_DIRECTION) _f(LISTENER_METADATA) _f(CLUSTER_NAME) _f(CLUSTER_METADATA)      \
+      _f(ROUTE_NAME) _f(ROUTE_METADATA) _f(PLUGIN_NAME) _f(UPSTREAM_HOST_METADATA)                 \
+          _f(PLUGIN_ROOT_ID) _f(PLUGIN_VM_ID) _f(PLUGIN_VM_MEMORY) _f(CONNECTION_ID)
+#else
 #define PROPERTY_TOKENS(_f)                                                                        \
   _f(NODE) _f(LISTENER_DIRECTION) _f(LISTENER_METADATA) _f(CLUSTER_NAME) _f(CLUSTER_METADATA)      \
       _f(ROUTE_NAME) _f(ROUTE_METADATA) _f(PLUGIN_NAME) _f(UPSTREAM_HOST_METADATA)                 \
           _f(PLUGIN_ROOT_ID) _f(PLUGIN_VM_ID) _f(CONNECTION_ID)
+#endif
 
 static inline std::string downCase(std::string s) {
   std::transform(s.begin(), s.end(), s.begin(), [](unsigned char c) { return std::tolower(c); });
@@ -614,6 +621,13 @@ Context::findValue(absl::string_view name, Protobuf::Arena* arena, bool last) co
     return CelValue::CreateStringView(toAbslStringView(root_id()));
   case PropertyToken::PLUGIN_VM_ID:
     return CelValue::CreateStringView(toAbslStringView(wasm()->vm_id()));
+#if defined(HIGRESS)
+  case PropertyToken::PLUGIN_VM_MEMORY:
+    if (wasm() && wasm()->wasm_vm()) {
+      return CelValue::CreateUint64(wasm()->wasm_vm()->getMemorySize());
+    }
+    break;
+#endif
   }
   return {};
 }

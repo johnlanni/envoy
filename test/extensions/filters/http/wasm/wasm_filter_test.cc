@@ -1850,6 +1850,21 @@ TEST_P(WasmHttpFilterTest, GetRouteName) {
   EXPECT_EQ(Http::FilterHeadersStatus::Continue, filter().decodeHeaders(request_headers, false));
   filter().onDestroy();
 }
+TEST_P(WasmHttpFilterTest, GetVMMemorySize) {
+  auto runtime = std::get<0>(GetParam());
+  if (runtime == "null") {
+    return;
+  }
+  if (std::get<1>(GetParam()) != "cpp") {
+    return;
+  }
+  setupTest("", "GetVMMemorySize");
+  setupFilter();
+  EXPECT_CALL(filter(), log_(spdlog::level::info, testing::StartsWith("vm memory size is ")));
+  Http::TestRequestHeaderMapImpl request_headers{};
+  EXPECT_EQ(Http::FilterHeadersStatus::Continue, filter().decodeHeaders(request_headers, false));
+  filter().onDestroy();
+}
 TEST_P(WasmHttpFilterTest, RecoverFromCrash) {
   auto runtime = std::get<0>(GetParam());
   if (runtime == "null") {
@@ -1980,7 +1995,7 @@ TEST_P(WasmHttpFilterTest, ProactiveRebuild) {
   request_headers = Http::TestRequestHeaderMapImpl{{"rebuild", "true"}};
   EXPECT_CALL(filter(), log_(spdlog::level::info, Eq("Setting rebuild flag")));
   EXPECT_EQ(Http::FilterHeadersStatus::Continue, filter().decodeHeaders(request_headers, false));
-  EXPECT_EQ(0U, rebuild_total.value());  // No rebuild yet, just set the flag
+  EXPECT_EQ(0U, rebuild_total.value()); // No rebuild yet, just set the flag
   EXPECT_EQ(0U, recover_total.value());
 
   // Now trigger the actual rebuild using doRebuild()
@@ -1998,7 +2013,7 @@ TEST_P(WasmHttpFilterTest, ProactiveRebuild) {
   request_headers = Http::TestRequestHeaderMapImpl{{"rebuild", "true"}};
   EXPECT_CALL(filter(), log_(spdlog::level::info, Eq("Setting rebuild flag")));
   EXPECT_EQ(Http::FilterHeadersStatus::Continue, filter().decodeHeaders(request_headers, false));
-  EXPECT_EQ(1U, rebuild_total.value());  // Still 1, just set the flag again
+  EXPECT_EQ(1U, rebuild_total.value()); // Still 1, just set the flag again
   EXPECT_EQ(0U, recover_total.value());
 
   // Trigger second rebuild using doRebuild()

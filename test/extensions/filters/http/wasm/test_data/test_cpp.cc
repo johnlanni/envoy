@@ -286,6 +286,21 @@ FilterHeadersStatus TestContext::onRequestHeaders(uint32_t, bool) {
       logError("get route name failed");
     }
     return FilterHeadersStatus::Continue;
+  } else if (test == "GetVMMemorySize") {
+    std::string value;
+    if (getValue({"plugin_vm_memory"}, &value)) {
+      // The value is stored as binary uint64_t, convert to string for logging
+      if (value.size() == sizeof(uint64_t)) {
+        uint64_t memory_size;
+        memcpy(&memory_size, value.data(), sizeof(uint64_t));
+        logInfo("vm memory size is " + std::to_string(memory_size));
+      } else {
+        logError("invalid memory size format");
+      }
+    } else {
+      logError("get vm memory size failed");
+    }
+    return FilterHeadersStatus::Continue;
   } else if (test == "CrashRecover") {
     if (!getRequestHeader("crash")->toString().empty()) {
       abort();
