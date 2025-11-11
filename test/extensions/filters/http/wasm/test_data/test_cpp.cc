@@ -290,6 +290,11 @@ FilterHeadersStatus TestContext::onRequestHeaders(uint32_t, bool) {
     if (!getRequestHeader("crash")->toString().empty()) {
       abort();
     }
+  } else if (test == "RebuildTest") {
+    if (!getRequestHeader("rebuild")->toString().empty()) {
+      logInfo("Setting rebuild flag");
+      setFilterState("wasm_rebuild", "true");
+    }
   } else if (test == "DisableClearRouteCache") {
     setFilterState("clear_route_cache", "off");
     logDebug(std::string("onRequestHeaders ") + std::to_string(id()) + std::string(" ") + test);

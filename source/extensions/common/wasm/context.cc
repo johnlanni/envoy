@@ -67,6 +67,7 @@ constexpr std::string_view ClearRouteCacheKey = "clear_route_cache";
 constexpr std::string_view DisableClearRouteCache = "off";
 constexpr std::string_view SetDecoderBufferLimit = "set_decoder_buffer_limit";
 constexpr std::string_view SetEncoderBufferLimit = "set_encoder_buffer_limit";
+constexpr std::string_view WasmRebuildKey = "wasm_rebuild";
 
 bool stringViewToUint32(std::string_view str, uint32_t& out_value) {
   try {
@@ -1354,7 +1355,13 @@ WasmResult Context::setProperty(std::string_view path, std::string_view value) {
                                         prototype.life_span_);
   }
 #if defined(HIGRESS)
-  if (path == ClearRouteCacheKey) {
+  if (path == WasmRebuildKey) {
+    if (wasm_) {
+      wasm_->setShouldRebuild(true);
+      ENVOY_LOG(debug, "Wasm rebuild flag set by plugin");
+    }
+    return WasmResult::Ok;
+  } else if (path == ClearRouteCacheKey) {
     disable_clear_route_cache_ = value == DisableClearRouteCache;
   } else if (path == SetDecoderBufferLimit && decoder_callbacks_) {
     uint32_t buffer_limit;
