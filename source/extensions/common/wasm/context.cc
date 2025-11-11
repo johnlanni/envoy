@@ -67,7 +67,7 @@ constexpr std::string_view ClearRouteCacheKey = "clear_route_cache";
 constexpr std::string_view DisableClearRouteCache = "off";
 constexpr std::string_view SetDecoderBufferLimit = "set_decoder_buffer_limit";
 constexpr std::string_view SetEncoderBufferLimit = "set_encoder_buffer_limit";
-constexpr std::string_view WasmRebuildKey = "wasm_rebuild";
+constexpr std::string_view WasmRebuildKey = "wasm_need_rebuild";
 
 bool stringViewToUint32(std::string_view str, uint32_t& out_value) {
   try {

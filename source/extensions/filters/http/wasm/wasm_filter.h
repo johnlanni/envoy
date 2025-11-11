@@ -65,8 +65,7 @@ public:
         // Reset rebuild state
         wasm->setShouldRebuild(false);
       } else {
-        ENVOY_LOG(info, "wasm vm rebuild failed");
-        failed = true;
+        ENVOY_LOG(info, "wasm vm rebuild failed, still using the stale one");
       }
     }
     if (failed) {

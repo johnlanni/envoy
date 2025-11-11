@@ -85,7 +85,7 @@ WasmEvent failStateToWasmEvent(FailState state) {
   PANIC("corrupt enum");
 }
 
-const int MIN_RECOVER_INTERVAL_SECONDS = 5;
+const int MIN_RECOVER_INTERVAL_SECONDS = 1;
 #endif
 
 } // namespace
@@ -204,7 +204,7 @@ bool PluginHandleSharedPtrThreadLocal::rebuild(bool is_fail_recovery) {
   auto& dispatcher = handle_->wasmHandle()->wasm()->dispatcher();
   auto now = dispatcher.timeSource().monotonicTime() + cache_time_offset_for_testing;
   if (now - last_recover_time_ < std::chrono::seconds(MIN_RECOVER_INTERVAL_SECONDS)) {
-    ENVOY_LOG(debug, "rebuild interval has not been reached");
+    ENVOY_LOG(info, "rebuild interval has not been reached");
     return false;
   }
   // Even if rebuild fails, it will be retried after the interval
