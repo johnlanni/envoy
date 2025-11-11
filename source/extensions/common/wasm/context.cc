@@ -721,12 +721,30 @@ Http::HeaderMap* Context::getMap(WasmHeaderMapType type) {
 }
 
 const Http::HeaderMap* Context::getConstMap(WasmHeaderMapType type) {
+#if defined(HIGRESS)
+  const StreamInfo::StreamInfo* request_stream_info = getConstRequestStreamInfo();
+#endif
   switch (type) {
   case WasmHeaderMapType::RequestHeaders:
     if (access_log_phase_) {
       return access_log_request_headers_;
     }
+#if defined(HIGRESS)
+    // Fallback mechanism for retrieving request headers:
+    // 1. First try the cached request_headers_ pointer (most common case)
+    // 2. If null, attempt to retrieve from StreamInfo (e.g., after internal redirects or
+    //    when headers are stored in stream info but not directly cached)
+    // 3. Return nullptr if both sources are unavailable
+    if (request_headers_ != nullptr) {
+      return request_headers_;
+    }
+    if (request_stream_info == nullptr) {
+      return nullptr;
+    }
+    return request_stream_info->getRequestHeaders();
+#else
     return request_headers_;
+#endif
   case WasmHeaderMapType::RequestTrailers:
     if (access_log_phase_) {
       return nullptr;
