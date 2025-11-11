@@ -481,9 +481,9 @@ bool ListenerManagerImpl::addOrUpdateListenerInternal(
         name, envoy::config::core::v3::TrafficDirection_Name(config.traffic_direction()));
     return false;
   }
-#if defined(ALIMESH) && defined(ENVOY_ENABLE_FULL_PROTOS)
+#if defined(HIGRESS) && defined(ENVOY_ENABLE_FULL_PROTOS)
   const uint64_t hash = HashCachedMessageUtil::hash(config);
-#else 
+#else
   const uint64_t hash = MessageUtil::hash(config);
 #endif
   ENVOY_LOG(debug, "begin add/update listener: name={} hash={}", name, hash);

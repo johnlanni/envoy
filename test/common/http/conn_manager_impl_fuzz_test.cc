@@ -57,7 +57,7 @@ public:
                    ALL_HTTP_CONN_MAN_STATS(POOL_COUNTER(*fake_stats_.rootScope()),
                                            POOL_GAUGE(fake_stats_),
                                            POOL_HISTOGRAM(*fake_stats_.rootScope()))
-#if defined(ALIMESH)
+#if defined(HIGRESS)
                        HIGRESS_EXT_HTTP_CONN_MAN_STATS(POOL_COUNTER(*fake_stats_.rootScope()),
                                                        POOL_GAUGE(fake_stats_),
                                                        POOL_HISTOGRAM(*fake_stats_.rootScope()))

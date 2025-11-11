@@ -171,7 +171,7 @@ TEST_F(ProtobufUtilityTest, EvaluateFractionalPercent) {
 
 } // namespace ProtobufPercentHelper
 
-#if defined(ALIMESH) && defined(ENVOY_ENABLE_FULL_PROTOS)
+#if defined(HIGRESS) && defined(ENVOY_ENABLE_FULL_PROTOS)
 TEST_F(ProtobufUtilityTest, HashCache) {
   ProtobufWkt::StringValue str1, str2, str3;
   TestUtility::loadFromJson("\"hello world\"", str1);
@@ -218,14 +218,14 @@ TEST_F(ProtobufUtilityTest, HashCache) {
 
   // Test direct message nesting (not map) - using Value with struct_value
   ProtobufWkt::Value nested_value1, nested_value2, nested_value3;
-  
+
   // Create nested structure: Value -> Struct -> Value -> StringValue
   auto* nested_struct1 = nested_value1.mutable_struct_value();
   (*nested_struct1->mutable_fields())["nested_field"].set_string_value("nested hello world");
-  
+
   auto* nested_struct2 = nested_value2.mutable_struct_value();
   (*nested_struct2->mutable_fields())["nested_field"].set_string_value("nested hello world");
-  
+
   auto* nested_struct3 = nested_value3.mutable_struct_value();
   (*nested_struct3->mutable_fields())["nested_field"].set_string_value("nested hello world!");
 
@@ -236,12 +236,12 @@ TEST_F(ProtobufUtilityTest, HashCache) {
   EXPECT_TRUE(nested_value1.HasCachedHashValue());
   EXPECT_TRUE(nested_value2.HasCachedHashValue());
   EXPECT_TRUE(nested_value3.HasCachedHashValue());
-  
+
   // Check nested struct messages
   EXPECT_TRUE(nested_value1.struct_value().HasCachedHashValue());
   EXPECT_TRUE(nested_value2.struct_value().HasCachedHashValue());
   EXPECT_TRUE(nested_value3.struct_value().HasCachedHashValue());
-  
+
   // Check the nested Value objects inside struct
   EXPECT_TRUE(nested_value1.struct_value().fields().at("nested_field").HasCachedHashValue());
   EXPECT_TRUE(nested_value2.struct_value().fields().at("nested_field").HasCachedHashValue());
@@ -249,32 +249,53 @@ TEST_F(ProtobufUtilityTest, HashCache) {
 
   // Test deeper nesting: Value -> Struct -> Value -> Struct -> Value -> StringValue
   ProtobufWkt::Value deep_nested_value1, deep_nested_value2;
-  
+
   auto* deep_struct1 = deep_nested_value1.mutable_struct_value();
   auto* deep_inner_struct1 = (*deep_struct1->mutable_fields())["deep_field"].mutable_struct_value();
   (*deep_inner_struct1->mutable_fields())["inner_field"].set_string_value("deep nested value");
-  
+
   auto* deep_struct2 = deep_nested_value2.mutable_struct_value();
   auto* deep_inner_struct2 = (*deep_struct2->mutable_fields())["deep_field"].mutable_struct_value();
   (*deep_inner_struct2->mutable_fields())["inner_field"].set_string_value("deep nested value");
 
-  EXPECT_EQ(HashCachedMessageUtil::hash(deep_nested_value1), HashCachedMessageUtil::hash(deep_nested_value2));
+  EXPECT_EQ(HashCachedMessageUtil::hash(deep_nested_value1),
+            HashCachedMessageUtil::hash(deep_nested_value2));
 
   // Check that all levels of nesting have cached hash values
   EXPECT_TRUE(deep_nested_value1.HasCachedHashValue());
   EXPECT_TRUE(deep_nested_value2.HasCachedHashValue());
-  
+
   EXPECT_TRUE(deep_nested_value1.struct_value().HasCachedHashValue());
   EXPECT_TRUE(deep_nested_value2.struct_value().HasCachedHashValue());
-  
+
   EXPECT_TRUE(deep_nested_value1.struct_value().fields().at("deep_field").HasCachedHashValue());
   EXPECT_TRUE(deep_nested_value2.struct_value().fields().at("deep_field").HasCachedHashValue());
-  
-  EXPECT_TRUE(deep_nested_value1.struct_value().fields().at("deep_field").struct_value().HasCachedHashValue());
-  EXPECT_TRUE(deep_nested_value2.struct_value().fields().at("deep_field").struct_value().HasCachedHashValue());
-  
-  EXPECT_TRUE(deep_nested_value1.struct_value().fields().at("deep_field").struct_value().fields().at("inner_field").HasCachedHashValue());
-  EXPECT_TRUE(deep_nested_value2.struct_value().fields().at("deep_field").struct_value().fields().at("inner_field").HasCachedHashValue());
+
+  EXPECT_TRUE(deep_nested_value1.struct_value()
+                  .fields()
+                  .at("deep_field")
+                  .struct_value()
+                  .HasCachedHashValue());
+  EXPECT_TRUE(deep_nested_value2.struct_value()
+                  .fields()
+                  .at("deep_field")
+                  .struct_value()
+                  .HasCachedHashValue());
+
+  EXPECT_TRUE(deep_nested_value1.struct_value()
+                  .fields()
+                  .at("deep_field")
+                  .struct_value()
+                  .fields()
+                  .at("inner_field")
+                  .HasCachedHashValue());
+  EXPECT_TRUE(deep_nested_value2.struct_value()
+                  .fields()
+                  .at("deep_field")
+                  .struct_value()
+                  .fields()
+                  .at("inner_field")
+                  .HasCachedHashValue());
 }
 
 TEST_F(ProtobufUtilityTest, MessageUtilRecursiveHash) {
@@ -446,7 +467,8 @@ TEST_F(ProtobufUtilityTest, MessageUtilHashComprehensive) {
 
     EXPECT_EQ(HashCachedMessageUtil::hash(list1), HashCachedMessageUtil::hash(list2));
     EXPECT_NE(HashCachedMessageUtil::hash(list1), HashCachedMessageUtil::hash(list3));
-    EXPECT_NE(HashCachedMessageUtil::hash(list1), HashCachedMessageUtil::hash(list4)); // Order matters
+    EXPECT_NE(HashCachedMessageUtil::hash(list1),
+              HashCachedMessageUtil::hash(list4)); // Order matters
     EXPECT_NE(0, HashCachedMessageUtil::hash(list1));
 
     // Test empty list
@@ -560,7 +582,8 @@ TEST_F(ProtobufUtilityTest, MessageUtilHashComprehensive) {
       (*large_struct2.mutable_fields())[field_name].set_string_value(field_value);
     }
 
-    EXPECT_EQ(HashCachedMessageUtil::hash(large_struct), HashCachedMessageUtil::hash(large_struct2));
+    EXPECT_EQ(HashCachedMessageUtil::hash(large_struct),
+              HashCachedMessageUtil::hash(large_struct2));
   }
 
   // Test 10: Edge cases
@@ -710,9 +733,11 @@ TEST_F(ProtobufUtilityTest, MessageUtilHashFieldTypes) {
 
   // Test that different types produce different hashes
   std::vector<uint64_t> hashes = {
-      HashCachedMessageUtil::hash(str_msg),    HashCachedMessageUtil::hash(int32_msg),  HashCachedMessageUtil::hash(uint32_msg),
-      HashCachedMessageUtil::hash(int64_msg),  HashCachedMessageUtil::hash(uint64_msg), HashCachedMessageUtil::hash(float_msg),
-      HashCachedMessageUtil::hash(double_msg), HashCachedMessageUtil::hash(bool_msg),   HashCachedMessageUtil::hash(null_struct)};
+      HashCachedMessageUtil::hash(str_msg),    HashCachedMessageUtil::hash(int32_msg),
+      HashCachedMessageUtil::hash(uint32_msg), HashCachedMessageUtil::hash(int64_msg),
+      HashCachedMessageUtil::hash(uint64_msg), HashCachedMessageUtil::hash(float_msg),
+      HashCachedMessageUtil::hash(double_msg), HashCachedMessageUtil::hash(bool_msg),
+      HashCachedMessageUtil::hash(null_struct)};
 
   // All hashes should be different (very unlikely to have collisions)
   for (size_t i = 0; i < hashes.size(); ++i) {
@@ -721,7 +746,6 @@ TEST_F(ProtobufUtilityTest, MessageUtilHashFieldTypes) {
     }
   }
 }
-
 
 TEST_F(ProtobufUtilityTest, MessageUtilRecursiveHashEdgeCases) {
   // Test edge cases for recursive hashing
@@ -970,7 +994,7 @@ TEST_F(ProtobufUtilityTest, MessageUtilHashCollisionDetection) {
   EXPECT_NE(int_hash, bool_hash);
   EXPECT_NE(str_hash, bool_hash);
 }
-#endif // ALIMESH
+#endif // HIGRESS
 
 TEST_F(ProtobufUtilityTest, MessageUtilHash) {
   ProtobufWkt::Struct s;
@@ -986,7 +1010,7 @@ TEST_F(ProtobufUtilityTest, MessageUtilHash) {
   ProtobufWkt::Any a3 = a1;
   a3.set_value(Base64::decode("CgsKAmFiEgUaA2ZnaAoLCgNjZGUSBBoCaWo="));
 
-#if defined(ALIMESH) && defined(ENVOY_ENABLE_FULL_PROTOS)
+#if defined(HIGRESS) && defined(ENVOY_ENABLE_FULL_PROTOS)
   // the message hash skip the any type parse, it cause unordered map in any to be different
 #else
   EXPECT_EQ(MessageUtil::hash(a1), MessageUtil::hash(a2));

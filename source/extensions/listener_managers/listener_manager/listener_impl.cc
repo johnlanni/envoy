@@ -1056,11 +1056,11 @@ void ListenerImpl::diffFilterChain(const ListenerImpl& another_listener,
   // Filter chain manager maintains an optional default filter chain besides the filter chains
   // indexed by message.
   if (auto
-    #if defined(ALIMESH) && defined(ENVOY_ENABLE_FULL_PROTOS) 
-    eq = HashCachedMessageUtil();
-    #else
-    eq = MessageUtil();
-    #endif
+#if defined(HIGRESS) && defined(ENVOY_ENABLE_FULL_PROTOS)
+          eq = HashCachedMessageUtil();
+#else
+          eq = MessageUtil();
+#endif
       filter_chain_manager_->defaultFilterChainMessage().has_value() &&
       (!another_listener.filter_chain_manager_->defaultFilterChainMessage().has_value() ||
        !eq(*another_listener.filter_chain_manager_->defaultFilterChainMessage(),

@@ -39,7 +39,7 @@ protected:
   void assertStreamInfoSize(StreamInfoImpl stream_info) {
     ASSERT_TRUE(sizeof(stream_info) == 840 || sizeof(stream_info) == 856 ||
                 sizeof(stream_info) == 888 || sizeof(stream_info) == 776 ||
-#if defined(ALIMESH)
+#if defined(HIGRESS)
                 sizeof(stream_info) == 816 || sizeof(stream_info) == 768 ||
 
                 // add hash cache to protobuf message

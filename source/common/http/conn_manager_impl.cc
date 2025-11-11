@@ -80,7 +80,7 @@ bool requestWasConnect(const RequestHeaderMapSharedPtr& headers, Protocol protoc
 ConnectionManagerStats ConnectionManagerImpl::generateStats(const std::string& prefix,
                                                             Stats::Scope& scope) {
   return ConnectionManagerStats(
-#if defined(ALIMESH)
+#if defined(HIGRESS)
       {ALL_HTTP_CONN_MAN_STATS(POOL_COUNTER_PREFIX(scope, prefix), POOL_GAUGE_PREFIX(scope, prefix),
                                POOL_HISTOGRAM_PREFIX(scope, prefix))
            HIGRESS_EXT_HTTP_CONN_MAN_STATS(POOL_COUNTER_PREFIX(scope, prefix),

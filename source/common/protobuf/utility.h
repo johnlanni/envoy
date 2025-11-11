@@ -580,7 +580,7 @@ public:
   static std::string sanitizeUtf8String(absl::string_view str);
 };
 
-#if defined(ALIMESH) && defined(ENVOY_ENABLE_FULL_PROTOS)
+#if defined(HIGRESS) && defined(ENVOY_ENABLE_FULL_PROTOS)
 class HashCachedMessageUtil : public MessageUtil {
 public:
   bool operator()(const Protobuf::Message& message) const { return message.GetCachedHashValue(); }
@@ -589,9 +589,7 @@ public:
     return lhs.GetCachedHashValue() == rhs.GetCachedHashValue();
   }
 
-  static std::size_t hash(const Protobuf::Message& message) {
-    return message.GetCachedHashValue();
-  }
+  static std::size_t hash(const Protobuf::Message& message) { return message.GetCachedHashValue(); }
 };
 #endif
 
