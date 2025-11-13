@@ -1262,7 +1262,7 @@ public:
   }
 
   void setup() {
-    config_ = std::make_unique<RedisRawClientDefaultConfig>();
+    config_ = std::make_shared<RedisRawClientDefaultConfig>();
     finishSetup();
   }
 
@@ -1291,7 +1291,7 @@ public:
         Common::Redis::RedisCommandStats::createRedisCommandStats(stats_.symbolTable());
 
     client_ = RawClientImpl::create(host_, dispatcher_, Common::Redis::RawEncoderPtr{encoder_},
-                                    *this, *config_, redis_command_stats_, *stats_.rootScope());
+                                    *this, config_, redis_command_stats_, *stats_.rootScope());
     EXPECT_EQ(1UL, host_->cluster_.traffic_stats_->upstream_cx_total_.value());
     EXPECT_EQ(1UL, host_->stats_.cx_total_.value());
     EXPECT_EQ(false, client_->active());
@@ -1346,7 +1346,7 @@ public:
   Common::Redis::RawDecoderCallbacks* callbacks_{};
   NiceMock<Network::MockClientConnection>* upstream_connection_{};
   Network::ReadFilterSharedPtr upstream_read_filter_;
-  std::unique_ptr<Config> config_;
+  ConfigSharedPtr config_;
   RawClientPtr client_;
   NiceMock<Stats::MockIsolatedStatsStore> stats_;
   Stats::ScopeSharedPtr stats_scope_;
@@ -1416,7 +1416,7 @@ TEST(RedisRawClientFactoryImplTest, Basic) {
 
   EXPECT_CALL(*host, createConnection_(_, _)).WillOnce(Return(conn_info));
   NiceMock<Event::MockDispatcher> dispatcher;
-  ConfigImpl config(createConnPoolSettings());
+  ConfigSharedPtr config = std::make_shared<ConfigImpl>(createConnPoolSettings());
   Stats::IsolatedStoreImpl stats_;
   auto redis_command_stats =
       Common::Redis::RedisCommandStats::createRedisCommandStats(stats_.symbolTable());

@@ -16,7 +16,7 @@ const std::string& RedisDBParamKey = "db";
 
 RawClientPtr RawClientImpl::create(Upstream::HostConstSharedPtr host, Event::Dispatcher& dispatcher,
                                    RawEncoderPtr&& encoder, RawDecoderFactory& decoder_factory,
-                                   const Config& config,
+                                   ConfigSharedPtr config,
                                    const RedisCommandStatsSharedPtr& redis_command_stats,
                                    Stats::Scope& scope) {
   auto client = std::make_unique<RawClientImpl>(
@@ -31,7 +31,7 @@ RawClientPtr RawClientImpl::create(Upstream::HostConstSharedPtr host, Event::Dis
 
 RawClientImpl::RawClientImpl(Upstream::HostConstSharedPtr host, Event::Dispatcher& dispatcher,
                              RawEncoderPtr&& encoder, RawDecoderFactory& decoder_factory,
-                             const Config& config,
+                             ConfigSharedPtr config,
                              const RedisCommandStatsSharedPtr& redis_command_stats,
                              Stats::Scope& scope)
     : host_(host), encoder_(std::move(encoder)), decoder_(decoder_factory.create(*this)),
@@ -77,10 +77,10 @@ PoolRequest* RawClientImpl::makeRawRequest(std::string_view request,
   encoder_->encode(request, encoder_buffer_);
 
   // If buffer is full, flush. If the buffer was empty before the request, start the timer.
-  if (encoder_buffer_.length() >= config_.maxBufferSizeBeforeFlush()) {
+  if (encoder_buffer_.length() >= config_->maxBufferSizeBeforeFlush()) {
     flushBufferAndResetTimer();
   } else if (empty_buffer) {
-    flush_timer_->enableTimer(std::chrono::milliseconds(config_.bufferFlushTimeoutInMs()));
+    flush_timer_->enableTimer(std::chrono::milliseconds(config_->bufferFlushTimeoutInMs()));
   }
 
   // Only boost the op timeout if:
@@ -90,7 +90,7 @@ PoolRequest* RawClientImpl::makeRawRequest(std::string_view request,
   // - This is the first request on the pipeline. Otherwise the timeout would effectively start on
   //   the last operation.
   if (connected_ && pending_requests_.size() == 1) {
-    connect_or_op_timer_->enableTimer(config_.opTimeout());
+    connect_or_op_timer_->enableTimer(config_->opTimeout());
   }
 
   return &pending_requests_.back();
@@ -125,7 +125,7 @@ void RawClientImpl::onData(Buffer::Instance& data) {
 }
 
 void RawClientImpl::putOutlierEvent(Upstream::Outlier::Result result) {
-  if (!config_.disableOutlierEvents()) {
+  if (!config_->disableOutlierEvents()) {
     host_->outlierDetector().putResult(result);
   }
 }
@@ -157,7 +157,7 @@ void RawClientImpl::onEvent(Network::ConnectionEvent event) {
   } else if (event == Network::ConnectionEvent::Connected) {
     connected_ = true;
     ASSERT(!pending_requests_.empty());
-    connect_or_op_timer_->enableTimer(config_.opTimeout());
+    connect_or_op_timer_->enableTimer(config_->opTimeout());
   }
 
   if (event == Network::ConnectionEvent::RemoteClose && !connected_) {
@@ -193,7 +193,7 @@ void RawClientImpl::onRawResponse(std::string&& response) {
   if (pending_requests_.empty()) {
     connect_or_op_timer_->disableTimer();
   } else {
-    connect_or_op_timer_->enableTimer(config_.opTimeout());
+    connect_or_op_timer_->enableTimer(config_->opTimeout());
   }
 
   putOutlierEvent(Upstream::Outlier::Result::ExtOriginRequestSuccess);
@@ -239,7 +239,7 @@ void RawClientImpl::initialize(const std::string& auth_username, const std::stri
     makeRawRequest(select_request, null_raw_client_callbacks);
   }
 
-  if (config_.readPolicy() != Common::Redis::Client::ReadPolicy::Primary) {
+  if (config_->readPolicy() != Common::Redis::Client::ReadPolicy::Primary) {
     makeRawRequest(Utility::makeRawReadOnlyRequest(), null_raw_client_callbacks);
   }
 }
@@ -247,7 +247,7 @@ void RawClientImpl::initialize(const std::string& auth_username, const std::stri
 RawClientFactoryImpl RawClientFactoryImpl::instance_;
 
 RawClientPtr RawClientFactoryImpl::create(Upstream::HostConstSharedPtr host,
-                                          Event::Dispatcher& dispatcher, const Config& config,
+                                          Event::Dispatcher& dispatcher, ConfigSharedPtr config,
                                           const RedisCommandStatsSharedPtr& redis_command_stats,
                                           Stats::Scope& scope, const std::string& auth_username,
                                           const std::string& auth_password,
