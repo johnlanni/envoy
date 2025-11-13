@@ -275,7 +275,7 @@ AsyncClientImpl::threadLocalActiveClient(Upstream::HostConstSharedPtr host) {
     client = std::make_unique<ThreadLocalActiveClient>(*this);
     client->host_ = host;
     client->redis_client_ =
-        client_factory_.create(host, dispatcher_, *config_, redis_command_stats_, *(stats_scope_),
+        client_factory_.create(host, dispatcher_, config_, redis_command_stats_, *(stats_scope_),
                                auth_username_, auth_password_, params_);
     client->redis_client_->addConnectionCallbacks(*client);
   }
