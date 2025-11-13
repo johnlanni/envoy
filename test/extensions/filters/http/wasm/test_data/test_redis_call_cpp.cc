@@ -30,7 +30,8 @@ static RegisterContextFactory register_RedisCallContext(CONTEXT_FACTORY(RedisCal
                                                         "redis_call");
 
 bool RedisCallRootContext::onConfigure(size_t) {
-  redisInit("cluster?db=1", "admin", "123456", 1000);
+  // Test with buffer configuration parameters
+  redisInit("cluster?db=1&buffer_flush_timeout=1&max_buffer_size_before_flush=512", "admin", "123456", 1000);
   return true;
 }
 
@@ -52,14 +53,16 @@ FilterHeadersStatus RedisCallContext::onRequestHeaders(uint32_t, bool) {
   auto query = "*3\r\n$3\r\nset\r\n$2\r\nid\r\n$1\r\n1\r\n";
   auto path = getRequestHeader(":path");
   if (path->view() == "/bad") {
-    if (root()->redisCall("cluster?db=1", query, callback) != WasmResult::Ok) {
+    // Test with different buffer params on runtime call
+    if (root()->redisCall("cluster?db=1&buffer_flush_timeout=2", query, callback) != WasmResult::Ok) {
       logInfo("redis_call rejected");
     }
   } else {
     if (root()->redisCall("bogus cluster", query, callback) == WasmResult::Ok) {
       logError("bogus cluster found error");
     }
-    root()->redisCall("cluster?db=1", query, callback);
+    // Test with buffer params in query string
+    root()->redisCall("cluster?db=1&buffer_flush_timeout=1&max_buffer_size_before_flush=512", query, callback);
     logInfo("onRequestHeaders");
   }
 
