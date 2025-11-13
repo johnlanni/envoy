@@ -1,4 +1,5 @@
 #include "envoy/grpc/async_client.h"
+#include "envoy/redis/async_client.h"
 
 #include "source/common/http/message_impl.h"
 #include "source/extensions/filters/http/wasm/wasm_filter.h"
@@ -794,6 +795,115 @@ TEST_P(WasmHttpFilterTest, RedisCall) {
 
   EXPECT_NE(callbacks, nullptr);
 }
+
+#if defined(HIGRESS)
+// Unit test for AsyncClientConfig parameter parsing
+TEST(RedisAsyncClientConfigTest, ParseBufferParamsFromQueryString) {
+  // Test with all parameters specified
+  {
+    std::map<std::string, std::string> params = {
+        {"db", "1"},
+        {"buffer_flush_timeout", "5"},
+        {"max_buffer_size_before_flush", "2048"}
+    };
+    Redis::AsyncClientConfig config("testuser", "testpass", 1000, std::move(params));
+
+    EXPECT_EQ(config.auth_username_, "testuser");
+    EXPECT_EQ(config.auth_password_, "testpass");
+    EXPECT_EQ(config.op_timeout_.count(), 1000);
+    EXPECT_EQ(config.buffer_flush_timeout_.count(), 5);
+    EXPECT_EQ(config.max_buffer_size_before_flush_, 2048);
+    EXPECT_EQ(config.params_.at("db"), "1");
+  }
+
+  // Test with only buffer_flush_timeout specified (max_buffer uses default)
+  {
+    std::map<std::string, std::string> params = {
+        {"buffer_flush_timeout", "1"}
+    };
+    Redis::AsyncClientConfig config("admin", "123456", 2000, std::move(params));
+
+    EXPECT_EQ(config.buffer_flush_timeout_.count(), 1);
+    EXPECT_EQ(config.max_buffer_size_before_flush_, 1024);  // default value
+  }
+
+  // Test with only max_buffer_size_before_flush specified (timeout uses default)
+  {
+    std::map<std::string, std::string> params = {
+        {"max_buffer_size_before_flush", "512"}
+    };
+    Redis::AsyncClientConfig config("admin", "123456", 2000, std::move(params));
+
+    EXPECT_EQ(config.buffer_flush_timeout_.count(), 3);  // default value
+    EXPECT_EQ(config.max_buffer_size_before_flush_, 512);
+  }
+
+  // Test with no buffer params (both use defaults)
+  {
+    std::map<std::string, std::string> params = {
+        {"db", "0"}
+    };
+    Redis::AsyncClientConfig config("user", "pass", 500, std::move(params));
+
+    EXPECT_EQ(config.buffer_flush_timeout_.count(), 3);  // default 3ms
+    EXPECT_EQ(config.max_buffer_size_before_flush_, 1024);  // default 1024 bytes
+  }
+
+  // Test with invalid buffer_flush_timeout (should use default)
+  {
+    std::map<std::string, std::string> params = {
+        {"buffer_flush_timeout", "invalid_number"}
+    };
+    Redis::AsyncClientConfig config("user", "pass", 500, std::move(params));
+
+    EXPECT_EQ(config.buffer_flush_timeout_.count(), 3);  // default due to parse error
+  }
+
+  // Test with invalid max_buffer_size_before_flush (should use default)
+  {
+    std::map<std::string, std::string> params = {
+        {"max_buffer_size_before_flush", "not_a_number"}
+    };
+    Redis::AsyncClientConfig config("user", "pass", 500, std::move(params));
+
+    EXPECT_EQ(config.max_buffer_size_before_flush_, 1024);  // default due to parse error
+  }
+
+  // Test with zero values (edge case - disable buffering)
+  {
+    std::map<std::string, std::string> params = {
+        {"buffer_flush_timeout", "0"},
+        {"max_buffer_size_before_flush", "0"}
+    };
+    Redis::AsyncClientConfig config("user", "pass", 500, std::move(params));
+
+    EXPECT_EQ(config.buffer_flush_timeout_.count(), 0);
+    EXPECT_EQ(config.max_buffer_size_before_flush_, 0);
+  }
+
+  // Test with very large values (within uint32 range)
+  {
+    std::map<std::string, std::string> params = {
+        {"buffer_flush_timeout", "10000"},
+        {"max_buffer_size_before_flush", "1048576"}  // 1MB
+    };
+    Redis::AsyncClientConfig config("user", "pass", 500, std::move(params));
+
+    EXPECT_EQ(config.buffer_flush_timeout_.count(), 10000);
+    EXPECT_EQ(config.max_buffer_size_before_flush_, 1048576);
+  }
+
+  // Test with value exceeding uint32 max (should use default)
+  {
+    std::map<std::string, std::string> params = {
+        {"max_buffer_size_before_flush", "99999999999999"}  // exceeds uint32::max
+    };
+    Redis::AsyncClientConfig config("user", "pass", 500, std::move(params));
+
+    EXPECT_EQ(config.max_buffer_size_before_flush_, 1024);  // default due to overflow
+  }
+}
+#endif
 
 TEST_P(WasmHttpFilterTest, DisableClearRouteCache) {
   if (std::get<1>(GetParam()) == "rust") {
