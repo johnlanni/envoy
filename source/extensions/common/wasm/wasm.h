@@ -185,6 +185,7 @@ public:
 
 private:
   MonotonicTime last_recover_time_;
+  std::weak_ptr<PluginHandle> old_handle_;
 };
 #else
 class PluginHandleSharedPtrThreadLocal : public ThreadLocal::ThreadLocalObject {
