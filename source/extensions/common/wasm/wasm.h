@@ -174,6 +174,7 @@ private:
   PluginHandleSharedPtr handle_;
 #if defined(HIGRESS)
   MonotonicTime last_recover_time_;
+  std::weak_ptr<PluginHandle> old_handle_;
 #endif
 };
 

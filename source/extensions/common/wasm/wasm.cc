@@ -207,10 +207,18 @@ bool PluginHandleSharedPtrThreadLocal::rebuild(bool is_fail_recovery) {
     ENVOY_LOG(info, "rebuild interval has not been reached");
     return false;
   }
+  // Check if old handle is still alive (still being referenced by old requests)
+  // If it's still alive, we don't want to create another VM to prevent memory accumulation
+  if (!old_handle_.expired()) {
+    ENVOY_LOG(info, "old wasm vm handle is still in use, skipping rebuild to prevent VM accumulation");
+    return false;
+  }
   // Even if rebuild fails, it will be retried after the interval
   last_recover_time_ = now;
   std::shared_ptr<PluginHandleBase> new_handle;
   if (handle_->rebuild(new_handle)) {
+    // Store weak_ptr to current handle before replacing it
+    old_handle_ = handle_;
     handle_ = std::static_pointer_cast<PluginHandle>(new_handle);
     // Increment appropriate metrics based on rebuild type
     if (is_fail_recovery) {
