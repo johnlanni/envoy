@@ -209,7 +209,8 @@ bool PluginHandleSharedPtrThreadLocal::rebuild(bool is_fail_recovery) {
   }
   // Check if old handle is still alive (still being referenced by old requests)
   // If it's still alive, we don't want to create another VM to prevent memory accumulation
-  if (!old_handle_.expired()) {
+  // For fail recovery scenarios, skip this check to ensure recovery can proceed
+  if (!is_fail_recovery && !old_handle_.expired()) {
     ENVOY_LOG(info, "old wasm vm handle is still in use, skipping rebuild to prevent VM accumulation");
     return false;
   }
