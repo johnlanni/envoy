@@ -217,12 +217,12 @@ PerLuaCodeSetup::PerLuaCodeSetup(const std::string& lua_code, ThreadLocal::SlotA
 
   request_function_slot_ = lua_state_.registerGlobal("envoy_on_request", initializers);
   if (lua_state_.getGlobalRef(request_function_slot_) == LUA_REFNIL) {
-    ENVOY_LOG(info, "envoy_on_request() function not found. Lua filter will not hook requests.");
+    ENVOY_LOG(debug, "envoy_on_request() function not found. Lua filter will not hook requests.");
   }
 
   response_function_slot_ = lua_state_.registerGlobal("envoy_on_response", initializers);
   if (lua_state_.getGlobalRef(response_function_slot_) == LUA_REFNIL) {
-    ENVOY_LOG(info, "envoy_on_response() function not found. Lua filter will not hook responses.");
+    ENVOY_LOG(debug, "envoy_on_response() function not found. Lua filter will not hook responses.");
   }
 }
 
