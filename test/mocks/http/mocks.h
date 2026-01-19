@@ -707,6 +707,9 @@ public:
   MOCK_METHOD(bool, appendLocalOverload, (), (const));
   MOCK_METHOD(bool, appendXForwardedPort, (), (const));
   MOCK_METHOD(bool, addProxyProtocolConnectionState, (), (const));
+#if defined(HIGRESS)
+  MOCK_METHOD(std::chrono::seconds, keepaliveHeaderTimeout, (), (const));
+#endif
 
   class AllowInternalAddressConfig : public Http::InternalAddressConfig {
   public:

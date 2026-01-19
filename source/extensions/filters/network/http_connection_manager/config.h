@@ -277,6 +277,9 @@ public:
   bool addProxyProtocolConnectionState() const override {
     return add_proxy_protocol_connection_state_;
   }
+#if defined(HIGRESS)
+  std::chrono::seconds keepaliveHeaderTimeout() const override { return keepalive_header_timeout_; }
+#endif
 
 private:
   enum class CodecType { HTTP1, HTTP2, HTTP3, AUTO };
@@ -365,6 +368,10 @@ private:
   static const uint64_t RequestTimeoutMs = 0;
   // request header timeout is disabled by default
   static const uint64_t RequestHeaderTimeoutMs = 0;
+#if defined(HIGRESS)
+  // keep-alive response header is disabled by default
+  static const uint64_t KeepaliveHeaderTimeoutSeconds = 0;
+#endif
   const envoy::extensions::filters::network::http_connection_manager::v3::HttpConnectionManager::
       PathWithEscapedSlashesAction path_with_escaped_slashes_action_;
   const bool strip_trailing_host_dot_;
@@ -374,6 +381,9 @@ private:
   const bool append_local_overload_;
   const bool append_x_forwarded_port_;
   const bool add_proxy_protocol_connection_state_;
+#if defined(HIGRESS)
+  const std::chrono::seconds keepalive_header_timeout_;
+#endif
 };
 
 /**

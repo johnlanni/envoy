@@ -242,6 +242,9 @@ public:
   bool appendLocalOverload() const override { return false; }
   bool appendXForwardedPort() const override { return false; }
   bool addProxyProtocolConnectionState() const override { return true; }
+#if defined(HIGRESS)
+  std::chrono::seconds keepaliveHeaderTimeout() const override { return {}; }
+#endif
 
 private:
   friend class AdminTestingPeer;
@@ -328,7 +331,15 @@ private:
     NullScopeKeyBuilder() = default;
     ~NullScopeKeyBuilder() override = default;
 
+#if defined(HIGRESS)
+    Router::ScopeKeyPtr computeScopeKey(const Http::HeaderMap&, const StreamInfo::StreamInfo*,
+                                        std::function<Router::ScopeKeyPtr()>&) const override {
+      return nullptr;
+    }
     Router::ScopeKeyPtr computeScopeKey(const Http::HeaderMap&) const override { return nullptr; };
+#else
+    Router::ScopeKeyPtr computeScopeKey(const Http::HeaderMap&) const override { return nullptr; };
+#endif
   };
 
   std::vector<const UrlHandler*> sortedHandlers() const;

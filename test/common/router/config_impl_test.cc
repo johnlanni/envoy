@@ -12360,6 +12360,228 @@ virtual_hosts:
   EXPECT_EQ(4194304U, route->requestBodyBufferLimit());
 }
 
+#if defined(HIGRESS)
+TEST_F(RouteMatchOverrideTest, NullRouteOnExactAllowServerNames) {
+  const std::string yaml = R"EOF(
+virtual_hosts:
+  - name: bar
+    domains: ["*"]
+    routes:
+      - match: { prefix: "/foo/bar/baz" }
+        route:
+          cluster: foo_bar_baz
+      - match: { prefix: "/foo/bar" }
+        route:
+          cluster: foo_bar
+      - match: { prefix: "/" }
+        route:
+          cluster: default
+    allow_server_names: ["www.example.com"]
+)EOF";
+  NiceMock<Envoy::StreamInfo::MockStreamInfo> stream_info;
+  auto downstream_connection_info_provider = std::make_shared<Network::ConnectionInfoSetterImpl>(
+      std::make_shared<Network::Address::Ipv4Instance>("127.0.0.1", 80),
+      std::make_shared<Network::Address::Ipv4Instance>("127.0.0.2", 1000));
+  downstream_connection_info_provider->setSslConnection(
+      std::make_shared<NiceMock<Ssl::MockConnectionInfo>>());
+  downstream_connection_info_provider->setRequestedServerName("test.example.com");
+  ON_CALL(stream_info, downstreamAddressProvider())
+      .WillByDefault(ReturnPointee(downstream_connection_info_provider));
+  factory_context_.cluster_manager_.initializeClusters({"foo_bar_baz", "foo_bar", "default"}, {});
+  TestConfigImpl config(parseRouteConfigurationFromYaml(yaml), factory_context_, true);
+  RouteConstSharedPtr accepted_route = config.route(
+      [](RouteConstSharedPtr, RouteEvalStatus) -> RouteMatchStatus {
+        ADD_FAILURE() << "RouteCallback should not be invoked since there are no matching "
+                         "route to override";
+        return RouteMatchStatus::Continue;
+      },
+      genHeaders("www.example.com", "/", "GET"), stream_info, 0);
+  EXPECT_NE(nullptr, dynamic_cast<const SNIRedirectRoute*>(accepted_route.get()));
+  EXPECT_EQ(Http::Code::MisdirectedRequest,
+            dynamic_cast<const SNIRedirectRoute*>(accepted_route.get())
+                ->directResponseEntry()
+                ->responseCode());
+  downstream_connection_info_provider->setRequestedServerName("www.example.com");
+  std::vector<std::string> clusters{"default", "foo_bar", "foo_bar_baz"};
+  accepted_route = config.route(
+      [&clusters](RouteConstSharedPtr route,
+                  RouteEvalStatus route_eval_status) -> RouteMatchStatus {
+        EXPECT_FALSE(clusters.empty());
+        EXPECT_EQ(clusters[clusters.size() - 1], route->routeEntry()->clusterName());
+        clusters.pop_back();
+
+        if (clusters.empty()) {
+          EXPECT_EQ(route_eval_status, RouteEvalStatus::NoMoreRoutes);
+        } else {
+          EXPECT_EQ(route_eval_status, RouteEvalStatus::HasMoreRoutes);
+        }
+        // Returning continue when no more routes are available will be ignored by
+        // ConfigImpl::route
+        return RouteMatchStatus::Continue;
+      },
+      genHeaders("www.example.com", "/foo/bar/baz", "GET"), stream_info, 0);
+  EXPECT_EQ(accepted_route, nullptr);
+}
+
+TEST_F(RouteMatchOverrideTest, NullRouteOnWildcardAllowServerNames) {
+  const std::string yaml = R"EOF(
+virtual_hosts:
+  - name: bar
+    domains: ["*"]
+    routes:
+      - match: { prefix: "/foo/bar/baz" }
+        route:
+          cluster: foo_bar_baz
+      - match: { prefix: "/foo/bar" }
+        route:
+          cluster: foo_bar
+      - match: { prefix: "/" }
+        route:
+          cluster: default
+    allow_server_names: ["www.example.com", "*.example.com"]
+)EOF";
+  NiceMock<Envoy::StreamInfo::MockStreamInfo> stream_info;
+  auto downstream_connection_info_provider = std::make_shared<Network::ConnectionInfoSetterImpl>(
+      std::make_shared<Network::Address::Ipv4Instance>("127.0.0.1", 80),
+      std::make_shared<Network::Address::Ipv4Instance>("127.0.0.2", 1000));
+  downstream_connection_info_provider->setSslConnection(
+      std::make_shared<NiceMock<Ssl::MockConnectionInfo>>());
+  downstream_connection_info_provider->setRequestedServerName("example.com");
+  ON_CALL(stream_info, downstreamAddressProvider())
+      .WillByDefault(ReturnPointee(downstream_connection_info_provider));
+  factory_context_.cluster_manager_.initializeClusters({"foo_bar_baz", "foo_bar", "default"}, {});
+  TestConfigImpl config(parseRouteConfigurationFromYaml(yaml), factory_context_, true);
+  RouteConstSharedPtr accepted_route = config.route(
+      [](RouteConstSharedPtr, RouteEvalStatus) -> RouteMatchStatus {
+        ADD_FAILURE() << "RouteCallback should not be invoked since there are no matching "
+                         "route to override";
+        return RouteMatchStatus::Continue;
+      },
+      genHeaders("www.example.com", "/", "GET"), stream_info, 0);
+  EXPECT_NE(nullptr, dynamic_cast<const SNIRedirectRoute*>(accepted_route.get()));
+  EXPECT_EQ(Http::Code::MisdirectedRequest,
+            dynamic_cast<const SNIRedirectRoute*>(accepted_route.get())
+                ->directResponseEntry()
+                ->responseCode());
+  downstream_connection_info_provider->setRequestedServerName("test.example.com");
+  std::vector<std::string> clusters{"default", "foo_bar", "foo_bar_baz"};
+  accepted_route = config.route(
+      [&clusters](RouteConstSharedPtr route,
+                  RouteEvalStatus route_eval_status) -> RouteMatchStatus {
+        EXPECT_FALSE(clusters.empty());
+        EXPECT_EQ(clusters[clusters.size() - 1], route->routeEntry()->clusterName());
+        clusters.pop_back();
+
+        if (clusters.empty()) {
+          EXPECT_EQ(route_eval_status, RouteEvalStatus::NoMoreRoutes);
+        } else {
+          EXPECT_EQ(route_eval_status, RouteEvalStatus::HasMoreRoutes);
+        }
+        // Returning continue when no more routes are available will be ignored by
+        // ConfigImpl::route
+        return RouteMatchStatus::Continue;
+      },
+      genHeaders("www.example.com", "/foo/bar/baz", "GET"), stream_info, 0);
+  EXPECT_EQ(accepted_route, nullptr);
+}
+
+TEST_F(RouteMatchOverrideTest, NullRouteOnEmptyAllowServerNames) {
+  const std::string yaml = R"EOF(
+virtual_hosts:
+  - name: bar
+    domains: ["*"]
+    routes:
+      - match: { prefix: "/foo/bar/baz" }
+        route:
+          cluster: foo_bar_baz
+      - match: { prefix: "/foo/bar" }
+        route:
+          cluster: foo_bar
+      - match: { prefix: "/" }
+        route:
+          cluster: default
+    allow_server_names: []
+)EOF";
+  NiceMock<Envoy::StreamInfo::MockStreamInfo> stream_info;
+  auto downstream_connection_info_provider = std::make_shared<Network::ConnectionInfoSetterImpl>(
+      std::make_shared<Network::Address::Ipv4Instance>("127.0.0.1", 80),
+      std::make_shared<Network::Address::Ipv4Instance>("127.0.0.2", 1000));
+  downstream_connection_info_provider->setSslConnection(
+      std::make_shared<NiceMock<Ssl::MockConnectionInfo>>());
+  ON_CALL(stream_info, downstreamAddressProvider())
+      .WillByDefault(ReturnPointee(downstream_connection_info_provider));
+  factory_context_.cluster_manager_.initializeClusters({"foo_bar_baz", "foo_bar", "default"}, {});
+  TestConfigImpl config(parseRouteConfigurationFromYaml(yaml), factory_context_, true);
+  downstream_connection_info_provider->setRequestedServerName("example.com");
+  std::vector<std::string> clusters{"default", "foo_bar", "foo_bar_baz"};
+  RouteConstSharedPtr accepted_route = config.route(
+      [&clusters](RouteConstSharedPtr route,
+                  RouteEvalStatus route_eval_status) -> RouteMatchStatus {
+        EXPECT_FALSE(clusters.empty());
+        EXPECT_EQ(clusters[clusters.size() - 1], route->routeEntry()->clusterName());
+        clusters.pop_back();
+
+        if (clusters.empty()) {
+          EXPECT_EQ(route_eval_status, RouteEvalStatus::NoMoreRoutes);
+        } else {
+          EXPECT_EQ(route_eval_status, RouteEvalStatus::HasMoreRoutes);
+        }
+        // Returning continue when no more routes are available will be ignored by
+        // ConfigImpl::route
+        return RouteMatchStatus::Continue;
+      },
+      genHeaders("www.example.com", "/foo/bar/baz", "GET"), stream_info, 0);
+  EXPECT_EQ(accepted_route, nullptr);
+}
+
+TEST_F(RouteMatchOverrideTest, NullRouteOnAllowServerNamesWithoutSsl) {
+  const std::string yaml = R"EOF(
+virtual_hosts:
+  - name: bar
+    domains: ["*"]
+    routes:
+      - match: { prefix: "/foo/bar/baz" }
+        route:
+          cluster: foo_bar_baz
+      - match: { prefix: "/foo/bar" }
+        route:
+          cluster: foo_bar
+      - match: { prefix: "/" }
+        route:
+          cluster: default
+    allow_server_names: ["www.example.com"]
+)EOF";
+  NiceMock<Envoy::StreamInfo::MockStreamInfo> stream_info;
+  auto downstream_connection_info_provider = std::make_shared<Network::ConnectionInfoSetterImpl>(
+      std::make_shared<Network::Address::Ipv4Instance>("127.0.0.1", 80),
+      std::make_shared<Network::Address::Ipv4Instance>("127.0.0.2", 1000));
+  ON_CALL(stream_info, downstreamAddressProvider())
+      .WillByDefault(ReturnPointee(downstream_connection_info_provider));
+  factory_context_.cluster_manager_.initializeClusters({"foo_bar_baz", "foo_bar", "default"}, {});
+  TestConfigImpl config(parseRouteConfigurationFromYaml(yaml), factory_context_, true);
+  downstream_connection_info_provider->setRequestedServerName("example.com");
+  std::vector<std::string> clusters{"default", "foo_bar", "foo_bar_baz"};
+  RouteConstSharedPtr accepted_route = config.route(
+      [&clusters](RouteConstSharedPtr route,
+                  RouteEvalStatus route_eval_status) -> RouteMatchStatus {
+        EXPECT_FALSE(clusters.empty());
+        EXPECT_EQ(clusters[clusters.size() - 1], route->routeEntry()->clusterName());
+        clusters.pop_back();
+
+        if (clusters.empty()) {
+          EXPECT_EQ(route_eval_status, RouteEvalStatus::NoMoreRoutes);
+        } else {
+          EXPECT_EQ(route_eval_status, RouteEvalStatus::HasMoreRoutes);
+        }
+        // Returning continue when no more routes are available will be ignored by
+        // ConfigImpl::route
+        return RouteMatchStatus::Continue;
+      },
+      genHeaders("www.example.com", "/foo/bar/baz", "GET"), stream_info, 0);
+  EXPECT_EQ(accepted_route, nullptr);
+}
+#endif
+
 } // namespace
 } // namespace Router
 } // namespace Envoy

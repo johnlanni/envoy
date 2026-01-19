@@ -671,6 +671,12 @@ public:
 
   MOCK_METHOD(ConfigConstSharedPtr, getRouteConfig, (const ScopeKeyPtr& scope_key), (const));
 
+#if defined(HIGRESS)
+  MOCK_METHOD(ConfigConstSharedPtr, getRouteConfig,
+              (const ScopeKeyBuilder*, const Http::HeaderMap&, const StreamInfo::StreamInfo*),
+              (const));
+#endif
+
   std::shared_ptr<MockConfig> route_config_{new NiceMock<MockConfig>()};
 };
 
@@ -694,7 +700,15 @@ public:
   MockScopeKeyBuilder();
   ~MockScopeKeyBuilder() override;
 
+#if defined(HIGRESS)
+  MOCK_METHOD(ScopeKeyPtr, computeScopeKey,
+              (const Http::HeaderMap&, const StreamInfo::StreamInfo*,
+               std::function<ScopeKeyPtr()>& recompute),
+              (const));
   MOCK_METHOD(ScopeKeyPtr, computeScopeKey, (const Http::HeaderMap&), (const));
+#else
+  MOCK_METHOD(ScopeKeyPtr, computeScopeKey, (const Http::HeaderMap&), (const));
+#endif
 };
 
 class MockGenericConnPool : public GenericConnPool {

@@ -1682,7 +1682,41 @@ VirtualHostImpl::VirtualHostImpl(const envoy::config::route::v3::VirtualHost& vi
       routes_.emplace_back(route_or_error.value());
     }
   }
+
+#if defined(HIGRESS)
+  for (const auto& server_name : virtual_host.allow_server_names()) {
+    auto isWildcardServerName = absl::StartsWith(server_name, "*.");
+    if (absl::StrContains(server_name, '*') && !isWildcardServerName) {
+      throw EnvoyException(
+          fmt::format("partial wildcards are not supported in \"allow_server_names\""));
+    }
+    if (isWildcardServerName) {
+      // Add for the wildcard domain, i.e. ".example.com" for "*.example.com".
+      allow_server_names_.push_back(server_name.substr(1));
+    } else {
+      allow_server_names_.push_back(server_name);
+    }
+  }
+#endif
 }
+
+const std::shared_ptr<const SslRedirectRoute> VirtualHostImpl::SSL_REDIRECT_ROUTE{
+    new SslRedirectRoute()};
+
+#if defined(HIGRESS)
+const SslPermanentRedirector SslPermanentRedirectRoute::SSL_PERMANENT_REDIRECTOR;
+const std::shared_ptr<const SslPermanentRedirectRoute>
+    VirtualHostImpl::SSL_PERMANENT_REDIRECT_ROUTE{new SslPermanentRedirectRoute};
+
+const SNIRedirector SNIRedirectRoute::SNI_REDIRECTOR;
+const envoy::config::core::v3::Metadata SNIRedirectRoute::metadata_;
+const Envoy::Config::TypedMetadataImpl<Envoy::Config::TypedMetadataFactory>
+    SNIRedirectRoute::typed_metadata_({});
+
+const std::shared_ptr<const SNIRedirectRoute> VirtualHostImpl::SNI_REDIRECT_ROUTE{
+    new SNIRedirectRoute()};
+#endif
+
 
 RouteConstSharedPtr VirtualHostImpl::getRouteFromRoutes(
     const RouteCallback& cb, const Http::RequestHeaderMap& headers,
@@ -1736,6 +1770,52 @@ RouteConstSharedPtr VirtualHostImpl::getRouteFromEntries(const RouteCallback& cb
     return nullptr;
   }
 
+#if defined(HIGRESS)
+  // First check for sni redirect.
+  if (allow_server_names_.empty()) {
+    goto SNI_CHECK_PASS;
+  }
+  if (stream_info.downstreamAddressProvider().sslConnection() == nullptr) {
+    ENVOY_LOG(warn, "allow_server_names field is ignored, because it's not a ssl "
+                    "connection.");
+    goto SNI_CHECK_PASS;
+  }
+  {
+    auto server_name = stream_info.downstreamAddressProvider().requestedServerName();
+    auto it = std::find(allow_server_names_.begin(), allow_server_names_.end(), server_name);
+    if (it != allow_server_names_.end()) {
+      goto SNI_CHECK_PASS;
+    } else {
+      // Match on all wildcard domains, i.e. ".example.com" and ".com" for "www.example.com".
+      size_t pos = server_name.find('.', 1);
+      while (pos < server_name.size() - 1 && pos != absl::string_view::npos) {
+        auto wildcard = server_name.substr(pos);
+        auto it = std::find(allow_server_names_.begin(), allow_server_names_.end(), wildcard);
+        if (it != allow_server_names_.end()) {
+          goto SNI_CHECK_PASS;
+        }
+        pos = server_name.find('.', pos + 1);
+      }
+    }
+  }
+  return SNI_REDIRECT_ROUTE;
+
+SNI_CHECK_PASS:
+  // Second check for ssl redirect
+  RouteConstSharedPtr redirect_route = SSL_PERMANENT_REDIRECT_ROUTE;
+  // only return 301 when http method is GET or HEAD
+  if (headers.Method() && (headers.Method()->value() == Http::Headers::get().MethodValues.Get ||
+                           headers.Method()->value() == Http::Headers::get().MethodValues.Head)) {
+    redirect_route = SSL_REDIRECT_ROUTE;
+  }
+  if (ssl_requirements_ == SslRequirements::All && scheme != "https") {
+    return redirect_route;
+  } else if (ssl_requirements_ == SslRequirements::ExternalOnly && scheme != "https" &&
+             !Http::HeaderUtility::isEnvoyInternalRequest(headers)) {
+    return redirect_route;
+  }
+#else
+
   // First check for ssl redirect.
   if (ssl_requirements_ == SslRequirements::All && scheme != "https") {
     return ssl_redirect_route_;
@@ -1743,6 +1823,7 @@ RouteConstSharedPtr VirtualHostImpl::getRouteFromEntries(const RouteCallback& cb
              !Http::HeaderUtility::isEnvoyInternalRequest(headers)) {
     return ssl_redirect_route_;
   }
+#endif
 
   if (matcher_) {
     Http::Matching::HttpMatchingDataImpl data(stream_info);

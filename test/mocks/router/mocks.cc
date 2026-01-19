@@ -198,6 +198,9 @@ MockRouteConfigProviderManager::~MockRouteConfigProviderManager() = default;
 
 MockScopedConfig::MockScopedConfig() {
   ON_CALL(*this, getRouteConfig(_)).WillByDefault(Return(route_config_));
+#if defined(HIGRESS)
+  ON_CALL(*this, getRouteConfig(_, _, _)).WillByDefault(Return(route_config_));
+#endif
 }
 MockScopedConfig::~MockScopedConfig() = default;
 

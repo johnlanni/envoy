@@ -250,6 +250,11 @@ ConnectionManagerUtility::MutateRequestHeadersResult ConnectionManagerUtility::m
     cleanInternalHeaders(request_headers, edge_request, route_config.internalOnlyHeaders());
   }
 
+#if defined(HIGRESS)
+  request_headers.setReferenceKey(Http::CustomHeaders::get().AliExtendedValues.XEnvoyOriginalHost,
+                                  request_headers.getHostValue());
+#endif
+
   if (config.userAgent()) {
     request_headers.setEnvoyDownstreamServiceCluster(config.userAgent().value());
     const HeaderEntry* user_agent_header = request_headers.UserAgent();

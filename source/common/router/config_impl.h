@@ -136,6 +136,65 @@ private:
       typed_metadata_;
 };
 
+#if defined(HIGRESS)
+class SslPermanentRedirector : public SslRedirector {
+public:
+  Http::Code responseCode() const override { return Http::Code::PermanentRedirect; }
+};
+class SslPermanentRedirectRoute : public SslRedirectRoute {
+public:
+  const DirectResponseEntry* directResponseEntry() const override {
+    return &SSL_PERMANENT_REDIRECTOR;
+  }
+
+private:
+  static const SslPermanentRedirector SSL_PERMANENT_REDIRECTOR;
+};
+
+class SNIRedirector : public DirectResponseEntry {
+public:
+  // Router::DirectResponseEntry
+  void finalizeResponseHeaders(Http::ResponseHeaderMap&,
+                               const StreamInfo::StreamInfo&) const override {}
+  Http::HeaderTransforms responseHeaderTransforms(const StreamInfo::StreamInfo&,
+                                                  bool) const override {
+    return {};
+  }
+  std::string newUri(const Http::RequestHeaderMap&) const override { return ""; };
+  void rewritePathHeader(Http::RequestHeaderMap&, bool) const override {}
+  Http::Code responseCode() const override { return Http::Code::MisdirectedRequest; }
+  const std::string& responseBody() const override { return EMPTY_STRING; }
+  const std::string& routeName() const override { return route_name_; }
+
+private:
+  const std::string route_name_;
+};
+
+class SNIRedirectRoute : public Route {
+public:
+  // Router::Route
+  const DirectResponseEntry* directResponseEntry() const override { return &SNI_REDIRECTOR; }
+  const RouteEntry* routeEntry() const override { return nullptr; }
+  const Decorator* decorator() const override { return nullptr; }
+  const RouteTracing* tracingConfig() const override { return nullptr; }
+  const RouteSpecificFilterConfig* mostSpecificPerFilterConfig(const std::string&) const override {
+    return nullptr;
+  }
+  bool filterDisabled(absl::string_view) const override { return false; }
+  void traversePerFilterConfig(
+      const std::string&,
+      std::function<void(const Router::RouteSpecificFilterConfig&)>) const override {}
+  const envoy::config::core::v3::Metadata& metadata() const override { return metadata_; }
+  const Envoy::Config::TypedMetadata& typedMetadata() const override { return typed_metadata_; }
+
+private:
+  static const SNIRedirector SNI_REDIRECTOR;
+  static const envoy::config::core::v3::Metadata metadata_;
+  static const Envoy::Config::TypedMetadataImpl<Envoy::Config::TypedMetadataFactory>
+      typed_metadata_;
+};
+#endif
+
 /**
  * Implementation of CorsPolicy that reads from the proto route and virtual host config.
  * TODO(wbpcode): move all cors interfaces and implementation to 'extensions/filters/http/cors'.
@@ -387,6 +446,13 @@ public:
 private:
   enum class SslRequirements : uint8_t { None, ExternalOnly, All };
 
+  static const std::shared_ptr<const SslRedirectRoute> SSL_REDIRECT_ROUTE;
+#if defined(HIGRESS)
+  static const std::shared_ptr<const SslPermanentRedirectRoute> SSL_PERMANENT_REDIRECT_ROUTE;
+  static const std::shared_ptr<const SNIRedirectRoute> SNI_REDIRECT_ROUTE;
+#endif
+
+
   CommonVirtualHostSharedPtr shared_virtual_host_;
 
   std::shared_ptr<const SslRedirectRoute> ssl_redirect_route_;
@@ -394,6 +460,9 @@ private:
 
   std::vector<RouteEntryImplBaseConstSharedPtr> routes_;
   Matcher::MatchTreeSharedPtr<Http::HttpMatchingData> matcher_;
+#if defined(HIGRESS)
+  std::vector<std::string> allow_server_names_;
+#endif
 };
 
 using VirtualHostImplSharedPtr = std::shared_ptr<VirtualHostImpl>;
