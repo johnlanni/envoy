@@ -1008,7 +1008,7 @@ public:
    */
   virtual void setDownstreamTransportFailureReason(absl::string_view failure_reason) PURE;
 
-  /**
+/**
    * Checked by routing filters before forwarding a request upstream.
    * @return to override the scheme header to match the upstream transport
    * protocol at routing filters.
@@ -1052,6 +1052,19 @@ public:
    * finished sending and receiving.
    */
   virtual void setShouldDrainConnectionUponCompletion(bool should_drain) PURE;
+
+#ifdef HIGRESS
+  /**
+   * @param key the filter state key set by wasm filter.
+   * @param value the filter state value set by wasm filter.
+   */
+  virtual void setCustomSpanTag(absl::string_view key, absl::string_view value) PURE;
+
+  /**
+   * @return the key-value map of filter states set by wasm filter.
+   */
+  virtual const absl::flat_hash_map<std::string, std::string>& getCustomSpanTagMap() const PURE;
+#endif
 };
 
 // An enum representation of the Proxy-Status error space.

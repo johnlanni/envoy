@@ -169,7 +169,7 @@ public:
   MOCK_METHOD(bool, isShadow, (), (const, override));
   MOCK_METHOD(void, setDownstreamTransportFailureReason, (absl::string_view failure_reason));
   MOCK_METHOD(absl::string_view, downstreamTransportFailureReason, (), (const));
-  MOCK_METHOD(bool, shouldSchemeMatchUpstream, (), (const));
+MOCK_METHOD(bool, shouldSchemeMatchUpstream, (), (const));
   MOCK_METHOD(void, setShouldSchemeMatchUpstream, (bool));
   MOCK_METHOD(bool, shouldDrainConnectionUponCompletion, (), (const));
   MOCK_METHOD(void, setShouldDrainConnectionUponCompletion, (bool));
@@ -178,6 +178,10 @@ public:
   MOCK_METHOD(OptRef<const StreamInfo>, parentStreamInfo, (), (const));
   MOCK_METHOD(void, addCustomFlag, (absl::string_view));
   MOCK_METHOD(absl::string_view, customFlags, (), (const));
+#ifdef HIGRESS
+  MOCK_METHOD(void, setCustomSpanTag, (absl::string_view, absl::string_view));
+  MOCK_METHOD((const absl::flat_hash_map<std::string, std::string>&), getCustomSpanTagMap, (), (const));
+#endif
 
   Envoy::Event::SimulatedTimeSystem ts_;
   SystemTime start_time_;

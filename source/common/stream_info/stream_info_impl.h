@@ -449,7 +449,7 @@ struct StreamInfoImpl : public StreamInfo {
     return downstream_transport_failure_reason_;
   }
 
-  bool shouldSchemeMatchUpstream() const override { return should_scheme_match_upstream_; }
+bool shouldSchemeMatchUpstream() const override { return should_scheme_match_upstream_; }
 
   void setShouldSchemeMatchUpstream(bool should_match_upstream) override {
     should_scheme_match_upstream_ = should_match_upstream;
@@ -468,6 +468,21 @@ struct StreamInfoImpl : public StreamInfo {
   OptRef<const StreamInfo> parentStreamInfo() const override { return parent_stream_info_; }
 
   void clearParentStreamInfo() override { parent_stream_info_.reset(); }
+
+#ifdef HIGRESS
+  void setCustomSpanTag(absl::string_view key, absl::string_view value) override {
+    auto it = custom_span_tags_.find(key);
+    if (it != custom_span_tags_.end()) {
+      it->second = value;
+    } else {
+      custom_span_tags_.emplace(key, value);
+    }
+  }
+
+  const absl::flat_hash_map<std::string, std::string>& getCustomSpanTagMap() const override {
+    return custom_span_tags_;
+  }
+#endif
 
   TimeSource& time_source_;
   SystemTime start_time_;
@@ -520,6 +535,9 @@ private:
   bool should_scheme_match_upstream_{false};
   bool should_drain_connection_{false};
   bool is_shadow_{false};
+#ifdef HIGRESS
+  absl::flat_hash_map<std::string, std::string> custom_span_tags_;
+#endif
 };
 
 } // namespace StreamInfo
