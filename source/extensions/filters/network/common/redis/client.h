@@ -9,6 +9,10 @@
 #include "source/extensions/filters/network/common/redis/codec_impl.h"
 #include "source/extensions/filters/network/common/redis/redis_command_stats.h"
 
+#if defined(HIGRESS)
+#include "envoy/redis/async_client.h"
+#endif
+
 namespace Envoy {
 namespace Extensions {
 namespace NetworkFilters {
@@ -16,6 +20,9 @@ namespace Common {
 namespace Redis {
 namespace Client {
 
+#if defined(HIGRESS)
+using PoolRequest = Envoy::Redis::PoolRequest;
+#else
 /**
  * A handle to an outbound request.
  */
@@ -28,6 +35,7 @@ public:
    */
   virtual void cancel() PURE;
 };
+#endif
 
 /**
  * Outbound request callbacks.

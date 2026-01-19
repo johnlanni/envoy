@@ -20,6 +20,9 @@ envoy_cc_mock(
         "//source/extensions/filters/network/common/redis:codec_lib",
         "//test/test_common:printers_lib",
     ],
+    higress_deps = [
+        "//source/extensions/filters/network/common/redis:raw_client_lib",
+    ],
 )
 
 envoy_cc_test_library(
@@ -61,6 +64,9 @@ envoy_cc_test(
         "//test/mocks/upstream:host_mocks",
         "//test/test_common:simulated_time_system_lib",
         "@envoy_api//envoy/extensions/filters/network/redis_proxy/v3:pkg_cc_proto",
+    ],
+    higress_deps = [
+        "//source/extensions/filters/network/common/redis:raw_client_lib",
     ],
 )
 

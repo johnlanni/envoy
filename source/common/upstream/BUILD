@@ -130,6 +130,9 @@ envoy_cc_library(
         "//source/common/http/http3:conn_pool_lib",
         "//source/common/http:conn_pool_grid",
     ]),
+    higress_deps = [
+        "//source/common/redis:async_client_lib",
+    ]
 )
 
 envoy_cc_library(

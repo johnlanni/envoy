@@ -29,6 +29,9 @@ MockThreadLocalCluster::MockThreadLocalCluster() {
       .WillByDefault(Invoke([this](absl::string_view drop_category) -> void {
         cluster_.drop_category_ = drop_category;
       }));
+#if defined(HIGRESS)
+  ON_CALL(*this, redisAsyncClient()).WillByDefault(ReturnRef(redis_async_client_));
+#endif
 }
 
 MockThreadLocalCluster::~MockThreadLocalCluster() = default;
