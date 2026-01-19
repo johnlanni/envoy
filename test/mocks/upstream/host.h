@@ -233,6 +233,11 @@ public:
                const envoy::config::core::v3::Metadata* metadata),
               (const));
 
+#if defined(HIGRESS)
+  MOCK_METHOD(std::string, getEndpointMetrics, (), (const));
+  MOCK_METHOD(void, setEndpointMetrics, (absl::string_view endpoint_metrics));
+#endif
+
   testing::NiceMock<MockClusterInfo> cluster_;
   Network::UpstreamTransportSocketFactoryPtr socket_factory_;
   testing::NiceMock<Outlier::MockDetectorHostMonitor> outlier_detector_;

@@ -1950,6 +1950,53 @@ WasmResult Context::sendLocalResponse(uint32_t response_code, std::string_view b
   return WasmResult::Ok;
 }
 
+#if defined(HIGRESS)
+std::string convertHealthStatusToString(Upstream::Host::Health status) {
+  if (status == Upstream::Host::Health::Unhealthy) {
+    return "Unhealthy";
+  } else if (status == Upstream::Host::Health::Degraded) {
+    return "Degraded";
+  } else {
+    return "Healthy";
+  }
+}
+WasmResult Context::getUpstreamHosts(StringPairs* result) {
+  if (decoder_callbacks_) {
+    auto upstream_cluster = decoder_callbacks_->clusterInfo();
+    if (!upstream_cluster) {
+      return WasmResult::Ok;
+    }
+    for (auto& p : this->clusterManager()
+                       .getThreadLocalCluster(upstream_cluster->name())
+                       ->prioritySet()
+                       .hostSetsPerPriority()) {
+      for (auto& h : p->hosts()) {
+        std::map<std::string, std::string> info_map;
+        if (!h->getEndpointMetrics().empty()) {
+          info_map["metrics"] = h->getEndpointMetrics();
+        }
+        info_map["health_status"] = convertHealthStatusToString(h->coarseHealth());
+        try {
+          nlohmann::json j = info_map;
+          result->push_back(std::make_pair(h->address()->asString(), j.dump(0)));
+        } catch (const std::exception& e) {
+          ENVOY_LOG(error, "getUpstreamHosts json dump failed: {}", e.what());
+          result->push_back(
+              std::make_pair(h->address()->asString(), "{\"error\": \"Failed to get host info\"}"));
+        }
+      }
+    }
+  }
+  return WasmResult::Ok;
+}
+WasmResult Context::setUpstreamOverrideHost(std::string_view address) {
+  if (decoder_callbacks_) {
+    decoder_callbacks_->setUpstreamOverrideHost(std::make_pair(address, false));
+  }
+  return WasmResult::Ok;
+}
+#endif
+
 Http::FilterHeadersStatus Context::decodeHeaders(Http::RequestHeaderMap& headers, bool end_stream) {
   onCreate();
   request_headers_ = &headers;

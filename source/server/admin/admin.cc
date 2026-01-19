@@ -397,9 +397,9 @@ Admin::RequestPtr AdminImpl::makeRequest(AdminStream& admin_stream) const {
     if (path_and_query.compare(0, query_index, handler.prefix_) == 0) {
 #if defined(HIGRESS)
       if (handler.prefix_ != "/stats/prometheus") {
-        auto route_identifier = admin_stream.getRequestHeaders().getByKey(
+        auto route_identifier = admin_stream.getRequestHeaders().get(
             Http::CustomHeaders::get().AliExtendedValues.XEnvoyRouteIdentifier);
-        if (route_identifier) {
+        if (!route_identifier.empty()) {
           return Admin::makeStaticTextRequest(
               "Access to admin interfaces via routing is forbidden.", Http::Code::Forbidden);
         }
