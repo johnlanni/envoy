@@ -17,12 +17,12 @@ class RawClientImpl : public RawClient,
 public:
   static RawClientPtr create(Upstream::HostConstSharedPtr host, Event::Dispatcher& dispatcher,
                              RawEncoderPtr&& encoder, RawDecoderFactory& decoder_factory,
-                             const Config& config,
+                             ConfigSharedPtr config,
                              const RedisCommandStatsSharedPtr& redis_command_stats,
                              Stats::Scope& scope);
 
   RawClientImpl(Upstream::HostConstSharedPtr host, Event::Dispatcher& dispatcher,
-                RawEncoderPtr&& encoder, RawDecoderFactory& decoder_factory, const Config& config,
+                RawEncoderPtr&& encoder, RawDecoderFactory& decoder_factory, ConfigSharedPtr config,
                 const RedisCommandStatsSharedPtr& redis_command_stats, Stats::Scope& scope);
   ~RawClientImpl() override;
 
@@ -84,7 +84,7 @@ private:
   RawEncoderPtr encoder_;
   Buffer::OwnedImpl encoder_buffer_;
   DecoderPtr decoder_;
-  const Config& config_;
+  ConfigSharedPtr config_;
   std::list<PendingRequest> pending_requests_;
   Event::TimerPtr connect_or_op_timer_;
   bool connected_{};
@@ -97,7 +97,8 @@ private:
 class RawClientFactoryImpl : public RawClientFactory {
 public:
   RawClientPtr create(Upstream::HostConstSharedPtr host, Event::Dispatcher& dispatcher,
-                      const Config& config, const RedisCommandStatsSharedPtr& redis_command_stats,
+                      ConfigSharedPtr config,
+                      const RedisCommandStatsSharedPtr& redis_command_stats,
                       Stats::Scope& scope, const std::string& auth_username,
                       const std::string& auth_password,
                       const std::map<std::string, std::string>& params) override;

@@ -74,7 +74,7 @@ public:
   virtual ~RawClientFactory() = default;
 
   virtual RawClientPtr create(Upstream::HostConstSharedPtr host, Event::Dispatcher& dispatcher,
-                              const Config& config,
+                              ConfigSharedPtr config,
                               const RedisCommandStatsSharedPtr& redis_command_stats,
                               Stats::Scope& scope, const std::string& auth_username,
                               const std::string& auth_password,
