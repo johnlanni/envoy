@@ -1479,6 +1479,7 @@ TEST_F(ClientContextConfigImplTest, RSA2048Cert) {
   auto cleanup = cleanUpHelper(*context_or);
 }
 
+#if !defined(HIGRESS)
 // Validate that 1024-bit RSA certificates are rejected.
 TEST_F(ClientContextConfigImplTest, RSA1024Cert) {
   envoy::extensions::transport_sockets::tls::v3::UpstreamTlsContext tls_context;
@@ -1526,6 +1527,25 @@ TEST_F(ClientContextConfigImplTest, RSA1024Pkcs12) {
                   .message(),
               testing::MatchesRegex(error_msg));
 }
+#else
+// Validate that 1024-bit RSA certificates load successfully.
+TEST_F(ClientContextConfigImplTest, RSA1024Cert) {
+  envoy::extensions::transport_sockets::tls::v3::UpstreamTlsContext tls_context;
+  const std::string tls_certificate_yaml = R"EOF(
+  certificate_chain:
+    filename: "{{ test_rundir }}/test/common/tls/test_data/selfsigned_rsa_1024_cert.pem"
+  private_key:
+    filename: "{{ test_rundir }}/test/common/tls/test_data/selfsigned_rsa_1024_key.pem"
+  )EOF";
+  TestUtility::loadFromYaml(TestEnvironment::substitute(tls_certificate_yaml),
+                            *tls_context.mutable_common_tls_context()->add_tls_certificates());
+  auto client_context_config = *ClientContextConfigImpl::create(tls_context, factory_context_);
+  Stats::IsolatedStoreImpl store;
+  auto context_or = manager_.createSslClientContext(*store_.rootScope(), *client_context_config);
+  EXPECT_TRUE(context_or.ok());
+  auto cleanup = cleanUpHelper(*context_or);
+}
+#endif
 
 // Validate that 3072-bit RSA certificates load successfully.
 TEST_F(ClientContextConfigImplTest, RSA3072Cert) {
