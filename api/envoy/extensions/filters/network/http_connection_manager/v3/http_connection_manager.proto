@@ -1226,6 +1226,8 @@ message ScopedRoutes {
     // in this message.
     ScopedRds scoped_rds = 5;
   }
+
+  google.protobuf.BoolValue retry_other_scope_when_not_found = 101;
 }
 
 message ScopedRds {
