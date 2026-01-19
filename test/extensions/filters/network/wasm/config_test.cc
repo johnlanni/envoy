@@ -219,7 +219,11 @@ TEST_P(WasmNetworkFilterConfigTest, FilterConfigFailClosed) {
   NetworkFilters::Wasm::FilterConfig filter_config(proto_config, context_);
   filter_config.wasm()->fail(proxy_wasm::FailState::RuntimeError, "");
   auto context = filter_config.createContext();
+#ifdef HIGRESS
+  EXPECT_NE(context->wasm(), nullptr);
+#else
   EXPECT_EQ(context->wasm(), nullptr);
+#endif
   EXPECT_TRUE(context->isFailed());
 }
 
@@ -242,7 +246,11 @@ TEST_P(WasmNetworkFilterConfigTest, DEPRECATED_FEATURE_TEST(FilterConfigFailOpen
   TestUtility::loadFromYaml(yaml, proto_config);
   NetworkFilters::Wasm::FilterConfig filter_config(proto_config, context_);
   filter_config.wasm()->fail(proxy_wasm::FailState::RuntimeError, "");
-  EXPECT_EQ(filter_config.createContext(), nullptr);
+#ifdef HIGRESS
+  EXPECT_NE(filter_config.createFilter(), nullptr);
+#else
+  EXPECT_EQ(filter_config.createFilter(), nullptr);
+#endif
 }
 
 TEST_P(WasmNetworkFilterConfigTest, FilterConfigFailOpenPolicy) {

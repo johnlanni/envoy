@@ -77,6 +77,7 @@ proto_library(
         "//contrib/envoy/extensions/compression/qatzstd/compressor/v3alpha:pkg",
         "//contrib/envoy/extensions/filters/http/checksum/v3alpha:pkg",
         "//contrib/envoy/extensions/filters/http/dynamo/v3:pkg",
+        "//contrib/envoy/extensions/filters/http/http_dubbo_transcoder/v3:pkg",
         "//contrib/envoy/extensions/filters/http/golang/v3alpha:pkg",
         "//contrib/envoy/extensions/filters/http/language/v3alpha:pkg",
         "//contrib/envoy/extensions/filters/http/sxg/v3alpha:pkg",
