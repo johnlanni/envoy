@@ -20,6 +20,11 @@ namespace Http {
 
 const absl::string_view AsyncClientImpl::ResponseBufferLimit = "http.async_response_buffer_limit";
 
+#if defined(HIGRESS)
+const Router::InternalActiveRedirectPoliciesImpl
+    AsyncStreamImpl::RouteEntryImpl::internal_active_redirect_policy_;
+#endif
+
 AsyncClientImpl::AsyncClientImpl(Upstream::ClusterInfoConstSharedPtr cluster,
                                  Stats::Store& stats_store, Event::Dispatcher& dispatcher,
                                  Upstream::ClusterManager& cm,

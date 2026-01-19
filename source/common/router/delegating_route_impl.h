@@ -133,6 +133,12 @@ public:
   void refreshRouteCluster(const Http::RequestHeaderMap& headers,
                            const StreamInfo::StreamInfo& stream_info) const override;
 
+#if defined(HIGRESS)
+  const InternalActiveRedirectPolicy& internalActiveRedirectPolicy() const override {
+    return base_route_->routeEntry()->internalActiveRedirectPolicy();
+  }
+#endif
+
 private:
   const RouteEntry* base_route_entry_{};
 };

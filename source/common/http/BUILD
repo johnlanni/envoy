@@ -55,6 +55,9 @@ envoy_cc_library(
     name = "null_route_impl_lib",
     srcs = ["null_route_impl.cc"],
     hdrs = ["null_route_impl.h"],
+    higress_deps = [
+        "//contrib/common/active_redirect/source:active_redirect_policy_lib",
+    ],
     deps = [
         ":hash_policy_lib",
         "//envoy/router:router_interface",

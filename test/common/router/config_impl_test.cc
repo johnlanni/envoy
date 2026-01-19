@@ -11287,6 +11287,324 @@ virtual_hosts:
                             ":-prefixed headers or Hosts may not be specified here.");
 }
 
+#if defined(HIGRESS)
+TEST_F(RouteConfigurationV2, InternalActiveRedirectIsDisabledWhenNotSpecifiedInRouteAction) {
+  const std::string yaml = R"EOF(
+virtual_hosts:
+  - name: regex
+    domains: [idle.lyft.com]
+    routes:
+      - match:
+          safe_regex:
+            regex: "/regex"
+        route:
+          cluster: some-cluster
+  )EOF";
+
+  factory_context_.cluster_manager_.initializeClusters({"some-cluster"}, {});
+  TestConfigImpl config(parseRouteConfigurationFromYaml(yaml), factory_context_, true,
+                        creation_status_);
+  Http::TestRequestHeaderMapImpl headers =
+      genRedirectHeaders("idle.lyft.com", "/regex", true, false);
+  const auto& internal_active_redirect_policy =
+      config.route(headers, 0)->routeEntry()->internalActiveRedirectPolicy();
+  EXPECT_FALSE(internal_active_redirect_policy.enabled());
+}
+
+TEST_F(RouteConfigurationV2, DefaultInternalActiveRedirectPolicyIsSensible) {
+  const std::string yaml = R"EOF(
+virtual_hosts:
+  - name: regex
+    domains: [idle.lyft.com]
+    routes:
+      - match:
+          safe_regex:
+            regex: "/regex"
+        route:
+          cluster: some-cluster
+          internal_active_redirect_policy:
+            policies:
+            - redirect_url: "taobao.com"
+              redirect_response_codes: [404]
+  )EOF";
+
+  factory_context_.cluster_manager_.initializeClusters({"some-cluster"}, {});
+  TestConfigImpl config(parseRouteConfigurationFromYaml(yaml), factory_context_, true,
+                        creation_status_);
+  Http::TestRequestHeaderMapImpl headers =
+      genRedirectHeaders("idle.lyft.com", "/regex", true, false);
+  const auto& internal_active_redirect_policy =
+      config.route(headers, 0)->routeEntry()->internalActiveRedirectPolicy();
+  EXPECT_TRUE(internal_active_redirect_policy.enabled());
+  EXPECT_FALSE(
+      internal_active_redirect_policy.shouldRedirectForResponseCode(static_cast<Http::Code>(503)));
+  EXPECT_FALSE(
+      internal_active_redirect_policy.shouldRedirectForResponseCode(static_cast<Http::Code>(200)));
+  EXPECT_FALSE(
+      internal_active_redirect_policy.shouldRedirectForResponseCode(static_cast<Http::Code>(302)));
+  EXPECT_EQ(1, internal_active_redirect_policy.maxInternalRedirects());
+  EXPECT_TRUE(internal_active_redirect_policy.predicates().empty());
+  EXPECT_FALSE(internal_active_redirect_policy.isCrossSchemeRedirectAllowed());
+  EXPECT_EQ("taobao.com", internal_active_redirect_policy.redirectUrl());
+}
+
+TEST_F(RouteConfigurationV2, InternalActiveRedirectPolicyDropsInvalidRedirectCode) {
+  const std::string yaml = R"EOF(
+virtual_hosts:
+  - name: regex
+    domains: [idle.lyft.com]
+    routes:
+      - match:
+          safe_regex:
+            regex: "/regex"
+        route:
+          cluster: some-cluster
+          internal_active_redirect_policy:
+            policies:
+            - redirect_url: "taobao.com"
+              redirect_response_codes: [301, 302, 303, 304, 307, 308, 503, 500, 404]
+              request_headers_to_add:
+                - header:
+                    key: x-req-cluster
+                    value: cluster1
+                  append: true
+  )EOF";
+
+  factory_context_.cluster_manager_.initializeClusters({"some-cluster"}, {});
+  TestConfigImpl config(parseRouteConfigurationFromYaml(yaml), factory_context_, true,
+                        creation_status_);
+  Http::TestRequestHeaderMapImpl headers =
+      genRedirectHeaders("idle.lyft.com", "/regex", true, false);
+  const auto& internal_active_redirect_policy =
+      config.route(headers, 0)->routeEntry()->internalActiveRedirectPolicy();
+  EXPECT_TRUE(internal_active_redirect_policy.enabled());
+  // The 301, 302, 303, 307, 308 is invalid code.
+  EXPECT_FALSE(
+      internal_active_redirect_policy.shouldRedirectForResponseCode(static_cast<Http::Code>(301)));
+  EXPECT_FALSE(
+      internal_active_redirect_policy.shouldRedirectForResponseCode(static_cast<Http::Code>(302)));
+  EXPECT_FALSE(
+      internal_active_redirect_policy.shouldRedirectForResponseCode(static_cast<Http::Code>(303)));
+  EXPECT_FALSE(
+      internal_active_redirect_policy.shouldRedirectForResponseCode(static_cast<Http::Code>(307)));
+  EXPECT_FALSE(
+      internal_active_redirect_policy.shouldRedirectForResponseCode(static_cast<Http::Code>(308)));
+  // No configured code.
+  EXPECT_TRUE(
+      internal_active_redirect_policy.shouldRedirectForResponseCode(static_cast<Http::Code>(304)));
+  EXPECT_FALSE(
+      internal_active_redirect_policy.shouldRedirectForResponseCode(static_cast<Http::Code>(305)));
+  EXPECT_FALSE(
+      internal_active_redirect_policy.shouldRedirectForResponseCode(static_cast<Http::Code>(306)));
+  // The configured code.
+  EXPECT_TRUE(
+      internal_active_redirect_policy.shouldRedirectForResponseCode(static_cast<Http::Code>(503)));
+  EXPECT_TRUE(
+      internal_active_redirect_policy.shouldRedirectForResponseCode(static_cast<Http::Code>(500)));
+  EXPECT_TRUE(
+      internal_active_redirect_policy.shouldRedirectForResponseCode(static_cast<Http::Code>(404)));
+
+  NiceMock<Envoy::StreamInfo::MockStreamInfo> stream_info;
+  Http::TestRequestHeaderMapImpl header_map{{":method", "POST"}};
+  internal_active_redirect_policy.evaluateHeaders(header_map, &stream_info);
+  EXPECT_TRUE(header_map.has("x-req-cluster"));
+  EXPECT_FALSE(header_map.has("x-client-ip"));
+}
+
+TEST_F(RouteConfigurationV2, InternalActiveRedirectPolicyDropsInvalidRedirectCodeCauseEmptySet) {
+  const std::string yaml = R"EOF(
+virtual_hosts:
+  - name: regex
+    domains: [idle.lyft.com]
+    routes:
+      - match:
+          safe_regex:
+            regex: "/regex"
+        route:
+          cluster: some-cluster
+          internal_active_redirect_policy:
+            policies:
+            - redirect_response_codes: [200, 301]
+              redirect_url_rewrite_regex:
+                pattern:
+                  google_re2: {}
+                  regex: "^/.+/(.+)$"
+                substitution: \1
+  )EOF";
+
+  factory_context_.cluster_manager_.initializeClusters({"some-cluster"}, {});
+  TestConfigImpl config(parseRouteConfigurationFromYaml(yaml), factory_context_, true,
+                        creation_status_);
+  Http::TestRequestHeaderMapImpl headers =
+      genRedirectHeaders("idle.lyft.com", "/regex", true, false);
+  const auto& internal_active_redirect_policy =
+      config.route(headers, 0)->routeEntry()->internalActiveRedirectPolicy();
+  EXPECT_TRUE(internal_active_redirect_policy.enabled());
+  EXPECT_FALSE(
+      internal_active_redirect_policy.shouldRedirectForResponseCode(static_cast<Http::Code>(302)));
+  EXPECT_FALSE(
+      internal_active_redirect_policy.shouldRedirectForResponseCode(static_cast<Http::Code>(301)));
+  EXPECT_FALSE(
+      internal_active_redirect_policy.shouldRedirectForResponseCode(static_cast<Http::Code>(200)));
+}
+
+TEST_F(RouteConfigurationV2, InternalActiveRedirectPolicyWithRedirectUrlRewriteRegex) {
+  const std::string yaml = R"EOF(
+virtual_hosts:
+  - name: regex
+    domains: [idle.lyft.com]
+    routes:
+      - match:
+          safe_regex:
+            regex: "/regex"
+        route:
+          cluster: some-cluster
+          internal_active_redirect_policy:
+            policies:
+            - redirect_response_codes: [200, 301]
+              redirect_url_rewrite_regex:
+                pattern:
+                  google_re2: {}
+                  regex: "^/.+/(.+)$"
+                substitution: \1
+  )EOF";
+
+  factory_context_.cluster_manager_.initializeClusters({"some-cluster"}, {});
+  TestConfigImpl config(parseRouteConfigurationFromYaml(yaml), factory_context_, true,
+                        creation_status_);
+  Http::TestRequestHeaderMapImpl headers =
+      genRedirectHeaders("idle.lyft.com", "/regex", true, false);
+  const auto& internal_active_redirect_policy =
+      config.route(headers, 0)->routeEntry()->internalActiveRedirectPolicy();
+  EXPECT_TRUE(internal_active_redirect_policy.enabled());
+
+  std::string path("/rewrite-host-with-path-regex/envoyproxy.io");
+  EXPECT_EQ("envoyproxy.io", internal_active_redirect_policy.redirectUrl(path));
+}
+
+TEST_F(RouteConfigurationV2,
+       InternalActiveRedirectPolicyWithRedirectUrlWithYoukuKrakenRewriteRegex) {
+  const std::string yaml = R"EOF(
+virtual_hosts:
+  - name: regex
+    domains: [act.youku.com]
+    routes:
+      - match:
+          safe_regex:
+            regex: "/yep/page/kraken/m_pre/i_just_test"
+        route:
+          cluster: some-cluster
+          internal_active_redirect_policy:
+            policies:
+            - redirect_response_codes: [503]
+              redirect_url_rewrite_regex:
+                pattern:
+                  google_re2: {}
+                  regex: (\W|^)kraken
+                substitution: test
+  )EOF";
+
+  factory_context_.cluster_manager_.initializeClusters({"some-cluster"}, {});
+  TestConfigImpl config(parseRouteConfigurationFromYaml(yaml), factory_context_, true,
+                        creation_status_);
+  Http::TestRequestHeaderMapImpl headers =
+      genRedirectHeaders("act.youku.com", "/yep/page/kraken/m_pre/i_just_test", true, false);
+  const auto& internal_active_redirect_policy =
+      config.route(headers, 0)->routeEntry()->internalActiveRedirectPolicy();
+  EXPECT_TRUE(internal_active_redirect_policy.enabled());
+
+  std::string path("/yep/page/kraken/m_pre/i_just_test");
+  EXPECT_EQ("/yep/pagetest/m_pre/i_just_test", internal_active_redirect_policy.redirectUrl(path));
+}
+
+TEST_F(RouteConfigurationV2, InternalActiveRedirectPolicyWithRedirectUrlHostRewrite) {
+  const std::string yaml = R"EOF(
+virtual_hosts:
+  - name: regex
+    domains: [act.youku.com]
+    routes:
+      - match:
+          safe_regex:
+            regex: "/yep/i_just_test"
+        route:
+          cluster: some-cluster
+          internal_active_redirect_policy:
+            policies:
+            - redirect_response_codes: [503]
+              redirect_url: /yep/page/kraken/m_pre/i_just_test
+              host_rewrite_literal: taobao.com
+
+  )EOF";
+
+  factory_context_.cluster_manager_.initializeClusters({"some-cluster"}, {});
+  TestConfigImpl config(parseRouteConfigurationFromYaml(yaml), factory_context_, true,
+                        creation_status_);
+  Http::TestRequestHeaderMapImpl headers =
+      genRedirectHeaders("act.youku.com", "/yep/i_just_test", true, false);
+  const auto& internal_active_redirect_policy =
+      config.route(headers, 0)->routeEntry()->internalActiveRedirectPolicy();
+  EXPECT_TRUE(internal_active_redirect_policy.enabled());
+
+  EXPECT_EQ("/yep/page/kraken/m_pre/i_just_test", internal_active_redirect_policy.redirectUrl());
+
+  NiceMock<Envoy::StreamInfo::MockStreamInfo> stream_info;
+  Http::TestRequestHeaderMapImpl header_map{{":method", "POST"}};
+  internal_active_redirect_policy.evaluateHeaders(header_map, &stream_info);
+  EXPECT_EQ("taobao.com", header_map.getHostValue());
+}
+
+TEST_F(RouteConfigurationV2, InternalActiveRedirectPolicyWithMultiPolicies) {
+  const std::string yaml = R"EOF(
+virtual_hosts:
+  - name: regex
+    domains: [act.youku.com]
+    routes:
+      - match:
+          safe_regex:
+            regex: "/yep/i_just_test"
+        route:
+          cluster: some-cluster
+          internal_active_redirect_policy:
+            policies:
+            - redirect_response_codes: [503]
+              redirect_url: /yep/page/kraken/m_pre/i_just_test
+              host_rewrite_literal: taobao.com
+            - redirect_response_codes: [505]
+              redirect_url: /yep/page/kraken/m_pre/i_just_test_505
+              host_rewrite_literal: taobao.com
+            - redirect_response_codes: [404]
+              redirect_url: /yep/page/kraken/m_pre/i_just_test_404
+              host_rewrite_literal: taobao.com
+  )EOF";
+
+  factory_context_.cluster_manager_.initializeClusters({"some-cluster"}, {});
+  TestConfigImpl config(parseRouteConfigurationFromYaml(yaml), factory_context_, true,
+                        creation_status_);
+  Http::TestRequestHeaderMapImpl headers =
+      genRedirectHeaders("act.youku.com", "/yep/i_just_test", true, false);
+  const auto& internal_active_redirect_policy =
+      config.route(headers, 0)->routeEntry()->internalActiveRedirectPolicy();
+  EXPECT_TRUE(internal_active_redirect_policy.enabled());
+
+  EXPECT_EQ("/yep/page/kraken/m_pre/i_just_test", internal_active_redirect_policy.redirectUrl());
+
+  NiceMock<Envoy::StreamInfo::MockStreamInfo> stream_info;
+  Http::TestRequestHeaderMapImpl header_map{{":method", "POST"}};
+  internal_active_redirect_policy.evaluateHeaders(header_map, &stream_info);
+  EXPECT_EQ("taobao.com", header_map.getHostValue());
+
+  EXPECT_TRUE(
+      internal_active_redirect_policy.shouldRedirectForResponseCode(static_cast<Http::Code>(404)));
+  EXPECT_EQ("/yep/page/kraken/m_pre/i_just_test_404",
+            internal_active_redirect_policy.redirectUrl());
+
+  EXPECT_TRUE(
+      internal_active_redirect_policy.shouldRedirectForResponseCode(static_cast<Http::Code>(505)));
+  EXPECT_EQ("/yep/page/kraken/m_pre/i_just_test_505",
+            internal_active_redirect_policy.redirectUrl());
+}
+#endif
+
 class PerFilterConfigsTest : public testing::Test, public ConfigImplTestBase {
 public:
   PerFilterConfigsTest()

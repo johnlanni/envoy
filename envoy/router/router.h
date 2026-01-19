@@ -33,6 +33,10 @@
 
 #include "absl/types/optional.h"
 
+#if defined(HIGRESS)
+#include "contrib/envoy/http/active_redirect_policy.h"
+#endif
+
 namespace Envoy {
 
 namespace Upstream {
@@ -1154,6 +1158,10 @@ public:
    * If present, informs how to handle proxying CONNECT requests on this route.
    */
   virtual const ConnectConfigOptRef connectConfig() const PURE;
+
+#if defined(HIGRESS)
+  virtual const InternalActiveRedirectPolicy& internalActiveRedirectPolicy() const PURE;
+#endif
 
   /**
    * @return RouteStatsContextOptRef the config needed to generate route level stats.

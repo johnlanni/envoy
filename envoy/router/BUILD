@@ -76,6 +76,9 @@ envoy_cc_library(
 envoy_cc_library(
     name = "router_interface",
     hdrs = ["router.h"],
+    higress_deps = [
+        "//contrib/envoy/http:active_redirect_policy_interface",
+    ],
     deps = [
         ":internal_redirect_interface",
         ":path_matcher_interface",

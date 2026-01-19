@@ -28,6 +28,12 @@ MockInternalRedirectPolicy::MockInternalRedirectPolicy() {
   ON_CALL(*this, enabled()).WillByDefault(Return(false));
 }
 
+#if defined(HIGRESS)
+MockInternalActiveRedirectPolicy::MockInternalActiveRedirectPolicy() {
+  ON_CALL(*this, enabled()).WillByDefault(Return(false));
+}
+#endif
+
 MockRetryState::MockRetryState() = default;
 
 void MockRetryState::expectHeadersRetry() {
@@ -115,6 +121,10 @@ MockRouteEntry::MockRouteEntry()
   ON_CALL(*this, connectConfig()).WillByDefault(Invoke([this]() {
     return connect_config_.has_value() ? makeOptRef(connect_config_.value()) : absl::nullopt;
   }));
+#if defined(HIGRESS)
+  ON_CALL(*this, internalActiveRedirectPolicy())
+      .WillByDefault(ReturnRef(internal_active_redirect_policy_));
+#endif
   ON_CALL(*this, earlyDataPolicy()).WillByDefault(ReturnRef(early_data_policy_));
   ON_CALL(*this, pathMatcher()).WillByDefault(ReturnRef(path_matcher_));
   ON_CALL(*this, pathRewriter()).WillByDefault(ReturnRef(path_rewriter_));

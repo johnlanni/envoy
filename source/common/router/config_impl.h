@@ -41,6 +41,10 @@
 #include "absl/container/node_hash_map.h"
 #include "absl/types/optional.h"
 
+#if defined(HIGRESS)
+#include "contrib/common/active_redirect/source/active_redirect_policy_impl.h"
+#endif
+
 namespace Envoy {
 namespace Router {
 
@@ -724,6 +728,18 @@ public:
     }
     return DefaultInternalRedirectPolicy::get();
   }
+#if defined(HIGRESS)
+  const InternalActiveRedirectPolicy& internalActiveRedirectPolicy() const override {
+    if (internal_active_redirect_policy_ != nullptr) {
+      return *internal_active_redirect_policy_;
+    }
+    return DefaultInternalActiveRedirectPolicy::get();
+  }
+
+  RouteConstSharedPtr clone(const std::string& name) const {
+    return std::make_shared<DynamicRouteEntry>(this, shared_from_this(), name);
+  }
+#endif
 
   const PathMatcherSharedPtr& pathMatcher() const override { return path_matcher_; }
   const PathRewriterSharedPtr& pathRewriter() const override { return path_rewriter_; }
@@ -941,6 +957,13 @@ private:
   buildPathRewriter(const envoy::config::route::v3::Route& route,
                     ProtobufMessage::ValidationVisitor& validator) const;
 
+#if defined(HIGRESS)
+  std::unique_ptr<InternalActiveRedirectPoliciesImpl>
+  buildActiveInternalRedirectPolicy(const envoy::config::route::v3::RouteAction& route_config,
+                                    ProtobufMessage::ValidationVisitor& validator,
+                                    absl::string_view current_route_name) const;
+#endif
+
   // Default timeout is 15s if nothing is specified in the route config.
   static const uint64_t DEFAULT_ROUTE_TIMEOUT_MS = 15000;
 
@@ -989,6 +1012,9 @@ private:
   std::unique_ptr<PerFilterConfigs> per_filter_configs_;
   const std::string route_name_;
   TimeSource& time_source_;
+#if defined(HIGRESS)
+  std::unique_ptr<const InternalActiveRedirectPoliciesImpl> internal_active_redirect_policy_;
+#endif
   EarlyDataPolicyPtr early_data_policy_;
 
   // Keep small members (bools and enums) at the end of class, to reduce alignment overhead.

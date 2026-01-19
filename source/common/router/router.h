@@ -627,9 +627,16 @@ private:
                                   UpstreamRequest& upstream_request);
   bool isEarlyConnectData();
 
+#if defined(HIGRESS)
+  bool setupActiveRedirect(const Http::ResponseHeaderMap& headers,
+                           UpstreamRequest& upstream_request);
+  bool convertRequestHeadersForInternalActiveRedirect(Http::RequestHeaderMap& downstream_headers);
+#endif
+
   RetryStatePtr retry_state_;
   const FilterConfigSharedPtr config_;
   Http::StreamDecoderFilterCallbacks* callbacks_{};
+
   RouteConstSharedPtr route_;
   const RouteEntry* route_entry_{};
   Upstream::ClusterInfoConstSharedPtr cluster_;

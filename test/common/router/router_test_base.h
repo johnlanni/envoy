@@ -111,6 +111,15 @@ public:
   // Recreates filter under test after any values that affect its constructor were changed.
   void recreateFilter();
 
+#if defined(HIGRESS)
+  void enableActiveRedirects(std::string redirect_url, uint32_t max_internal_redirects = 1,
+                             bool forced_use_original_host = false,
+                             bool forced_add_header_before_route_matcher = false);
+  void setNumPreviousActiveRedirect(uint32_t num_previous_redirects);
+
+  Http::ResponseHeaderMapPtr active_redirect_headers_{
+      new Http::TestResponseHeaderMapImpl{{":status", "502"}, {"location", "http://www.foo.com"}}};
+#endif
   Event::SimulatedTimeSystem test_time_;
   std::string upstream_zone_{"to_az"};
   envoy::config::core::v3::Locality upstream_locality_;

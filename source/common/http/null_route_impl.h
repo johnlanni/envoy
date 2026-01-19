@@ -8,6 +8,10 @@
 #include "source/common/upstream/retry_factory.h"
 #include "source/extensions/early_data/default_early_data_policy.h"
 
+#if defined(HIGRESS)
+#include "contrib/common/active_redirect/source/active_redirect_policy_impl.h"
+#endif
+
 namespace Envoy {
 namespace Http {
 
@@ -205,6 +209,12 @@ protected:
 
   const ConnectConfigOptRef connectConfig() const override { return connect_config_nullopt_; }
 
+#if defined(HIGRESS)
+  const Router::InternalActiveRedirectPolicy& internalActiveRedirectPolicy() const override {
+    return internal_active_redirect_policy_;
+  }
+#endif
+
   bool includeAttemptCountInRequest() const override { return false; }
   bool includeAttemptCountInResponse() const override { return false; }
   const Router::RouteEntry::UpgradeMap& upgradeMap() const override { return upgrade_map_; }
@@ -224,6 +234,9 @@ protected:
   static const std::vector<Router::ShadowPolicyPtr> shadow_policies_;
   static const std::multimap<std::string, std::string> opaque_config_;
   static const NullPathMatchCriterion path_match_criterion_;
+#if defined(HIGRESS)
+  static const Router::InternalActiveRedirectPoliciesImpl internal_active_redirect_policy_;
+#endif
 
   Router::RouteEntry::UpgradeMap upgrade_map_;
   const std::string cluster_name_;

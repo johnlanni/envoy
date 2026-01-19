@@ -458,8 +458,15 @@ RouteEntryImplBase::RouteEntryImplBase(const CommonVirtualHostSharedPtr& vhost,
         return vec;
       }()),
       opaque_config_(parseOpaqueConfig(route)), decorator_(parseDecorator(route)),
+#if !defined(HIGRESS)
       route_tracing_(parseRouteTracing(route)), route_name_(route.name()),
       time_source_(factory_context.mainThreadDispatcher().timeSource()),
+#else
+      route_tracing_(parseRouteTracing(route)), route_name_(route.name()),
+      time_source_(factory_context.mainThreadDispatcher().timeSource()),
+      internal_active_redirect_policy_(
+          buildActiveInternalRedirectPolicy(route.route(), validator, route.name())),
+#endif
       per_request_buffer_limit_(PROTOBUF_GET_WRAPPED_OR_DEFAULT(
           route, per_request_buffer_limit_bytes, std::numeric_limits<uint32_t>::max())),
       request_body_buffer_limit_(PROTOBUF_GET_WRAPPED_OR_DEFAULT(route, request_body_buffer_limit,
@@ -1103,6 +1110,32 @@ RouteEntryImplBase::buildInternalRedirectPolicy(
   }
   return InternalRedirectPolicyImpl::create(policy_config, validator, current_route_name);
 }
+
+#if defined(HIGRESS)
+std::unique_ptr<InternalActiveRedirectPoliciesImpl>
+RouteEntryImplBase::buildActiveInternalRedirectPolicy(
+    const envoy::config::route::v3::RouteAction& route_config,
+    ProtobufMessage::ValidationVisitor& validator, absl::string_view current_route_name) const {
+  if (route_config.has_internal_active_redirect_policy()) {
+    return std::make_unique<InternalActiveRedirectPoliciesImpl>(
+        route_config.internal_active_redirect_policy(), validator, current_route_name);
+  }
+  envoy::config::route::v3::InternalActiveRedirectPolicy policy_config;
+  switch (route_config.internal_redirect_action()) {
+  case envoy::config::route::v3::RouteAction::HANDLE_INTERNAL_REDIRECT:
+    break;
+  case envoy::config::route::v3::RouteAction::PASS_THROUGH_INTERNAL_REDIRECT:
+    FALLTHRU;
+  default:
+    return nullptr;
+  }
+  if (route_config.has_max_internal_redirects()) {
+    *policy_config.mutable_max_internal_redirects() = route_config.max_internal_redirects();
+  }
+  return std::make_unique<InternalActiveRedirectPoliciesImpl>(policy_config, validator,
+                                                              current_route_name);
+}
+#endif
 
 RouteEntryImplBase::OptionalTimeouts RouteEntryImplBase::buildOptionalTimeouts(
     const envoy::config::route::v3::RouteAction& route) const {

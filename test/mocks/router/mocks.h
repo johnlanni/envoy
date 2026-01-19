@@ -183,6 +183,22 @@ public:
   MOCK_METHOD(const std::vector<Http::LowerCaseString>&, responseHeadersToCopy, (), (const));
 };
 
+#if defined(HIGRESS)
+class MockInternalActiveRedirectPolicy : public InternalActiveRedirectPolicy {
+public:
+  MockInternalActiveRedirectPolicy();
+  MOCK_METHOD(bool, enabled, (), (const));
+  MOCK_METHOD(bool, shouldRedirectForResponseCode, (const Http::Code& response_code), (const));
+  MOCK_METHOD(std::vector<InternalRedirectPredicateSharedPtr>, predicates, (), (const));
+  MOCK_METHOD(uint32_t, maxInternalRedirects, (), (const));
+  MOCK_METHOD(bool, isCrossSchemeRedirectAllowed, (), (const));
+  MOCK_METHOD(void, evaluateHeaders, (Http::HeaderMap&, const StreamInfo::StreamInfo*), (const));
+  MOCK_METHOD(std::string, redirectUrl, (absl::optional<std::string>), (const));
+  MOCK_METHOD(bool, forcedUseOriginalHost, (), (const));
+  MOCK_METHOD(bool, forcedAddHeaderBeforeRouteMatcher, (), (const));
+};
+#endif
+
 class MockInternalRedirectPredicate : public InternalRedirectPredicate {
 public:
   MOCK_METHOD(bool, acceptTargetRoute, (StreamInfo::FilterState&, absl::string_view, bool, bool));
@@ -467,6 +483,10 @@ public:
   MOCK_METHOD(void, refreshRouteCluster,
               (const Http::RequestHeaderMap&, const StreamInfo::StreamInfo&), (const));
 
+#if defined(HIGRESS)
+  MOCK_METHOD(const InternalActiveRedirectPolicy&, internalActiveRedirectPolicy, (), (const));
+#endif
+
   std::string cluster_name_{"fake_cluster"};
   std::multimap<std::string, std::string> opaque_config_;
   std::shared_ptr<TestRetryPolicy> retry_policy_ = TestRetryPolicy::create();
@@ -484,6 +504,10 @@ public:
   testing::NiceMock<MockPathMatchCriterion> path_match_criterion_;
   UpgradeMap upgrade_map_;
   absl::optional<ConnectConfig> connect_config_;
+
+#if defined(HIGRESS)
+  testing::NiceMock<MockInternalActiveRedirectPolicy> internal_active_redirect_policy_;
+#endif
   testing::NiceMock<MockEarlyDataPolicy> early_data_policy_;
 };
 
