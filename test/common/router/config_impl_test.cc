@@ -3903,6 +3903,181 @@ virtual_hosts:
             config.route(genHeaders("some_cluster", "/bar", "GET"), 0).route.get());
 }
 
+#if defined(HIGRESS)
+TEST_F(RouteMatcherTest, WeightedClusterSpecifierPlugin) {
+  const std::string yaml = R"EOF(
+cluster_specifier_plugins:
+- extension:
+    name: test1
+    typed_config:
+      "@type": type.googleapis.com/google.protobuf.Struct
+      value:
+        a: test1
+- extension:
+    name: test2
+    typed_config:
+      "@type": type.googleapis.com/google.protobuf.Struct
+      value:
+        a: test2
+- extension:
+    name: test3
+    typed_config:
+      "@type": type.googleapis.com/google.protobuf.Struct
+      value:
+        a: test3
+virtual_hosts:
+- name: local_service
+  domains:
+  - "*"
+  routes:
+  - match:
+      prefix: "/foo"
+    route:
+      weighted_clusters:
+        clusters:
+        - name: cluster1
+          weight: 50
+        - name: cluster2
+          weight: 50
+        total_weight: 100
+        cluster_specifier_plugin: test2
+  - match:
+      prefix: "/bar"
+    route:
+      weighted_clusters:
+        clusters:
+        - name: cluster1
+          weight: 50
+        - name: cluster2
+          weight: 50
+        total_weight: 100
+        cluster_specifier_plugin: test3
+  )EOF";
+
+  NiceMock<MockClusterSpecifierPluginFactoryConfig> factory;
+  Registry::InjectFactory<ClusterSpecifierPluginFactoryConfig> registered(factory);
+
+  auto mock_cluster_specifier_plugin_1 = std::make_shared<NiceMock<MockClusterSpecifierPlugin>>();
+  auto mock_cluster_specifier_plugin_2 = std::make_shared<NiceMock<MockClusterSpecifierPlugin>>();
+  auto mock_cluster_specifier_plugin_3 = std::make_shared<NiceMock<MockClusterSpecifierPlugin>>();
+
+  factory_context_.cluster_manager_.initializeClusters({"cluster1", "cluster2"}, {});
+
+  EXPECT_CALL(factory, createClusterSpecifierPlugin(_, _))
+      .WillRepeatedly(Invoke(
+          [mock_cluster_specifier_plugin_1, mock_cluster_specifier_plugin_2,
+           mock_cluster_specifier_plugin_3](
+              const Protobuf::Message& config,
+              Server::Configuration::CommonFactoryContext&) -> ClusterSpecifierPluginSharedPtr {
+            const auto& typed_config = dynamic_cast<const ProtobufWkt::Struct&>(config);
+            if (auto iter = typed_config.fields().find("a"); iter == typed_config.fields().end()) {
+              return nullptr;
+            } else if (iter->second.string_value() == "test1") {
+              return mock_cluster_specifier_plugin_1;
+            } else if (iter->second.string_value() == "test2") {
+              return mock_cluster_specifier_plugin_2;
+            } else if (iter->second.string_value() == "test3") {
+              return mock_cluster_specifier_plugin_3;
+            }
+            return nullptr;
+          }));
+
+  NiceMock<Envoy::StreamInfo::MockStreamInfo> stream_info;
+  TestConfigImpl config(parseRouteConfigurationFromYaml(yaml), factory_context_, true);
+
+  auto mock_route = std::make_shared<NiceMock<MockRoute>>();
+
+  EXPECT_CALL(*mock_cluster_specifier_plugin_2, route(_, _)).WillOnce(Return(mock_route));
+  EXPECT_EQ(mock_route.get(), config.route(genHeaders("some_cluster", "/foo", "GET"), 0).get());
+
+  EXPECT_CALL(*mock_cluster_specifier_plugin_3, route(_, _)).WillOnce(Return(mock_route));
+  EXPECT_EQ(mock_route.get(), config.route(genHeaders("some_cluster", "/bar", "GET"), 0).get());
+}
+
+TEST_F(RouteMatcherTest, WeightedClusterInlineSpecifierPlugin) {
+  const std::string yaml = R"EOF(
+virtual_hosts:
+- name: local_service
+  domains:
+  - "*"
+  routes:
+  - match:
+      prefix: "/foo"
+    route:
+      weighted_clusters:
+        clusters:
+        - name: cluster1
+          weight: 50
+        - name: cluster2
+          weight: 50
+        total_weight: 100
+        inline_cluster_specifier_plugin:
+          extension:
+            name: test2
+            typed_config:
+              "@type": type.googleapis.com/google.protobuf.Struct
+              value:
+                a: test2
+  - match:
+      prefix: "/bar"
+    route:
+      weighted_clusters:
+        clusters:
+        - name: cluster1
+          weight: 50
+        - name: cluster2
+          weight: 50
+        total_weight: 100
+        inline_cluster_specifier_plugin:
+          extension:
+            name: test3
+            typed_config:
+              "@type": type.googleapis.com/google.protobuf.Struct
+              value:
+                a: test3
+  )EOF";
+
+  NiceMock<MockClusterSpecifierPluginFactoryConfig> factory;
+  Registry::InjectFactory<ClusterSpecifierPluginFactoryConfig> registered(factory);
+
+  auto mock_cluster_specifier_plugin_1 = std::make_shared<NiceMock<MockClusterSpecifierPlugin>>();
+  auto mock_cluster_specifier_plugin_2 = std::make_shared<NiceMock<MockClusterSpecifierPlugin>>();
+  auto mock_cluster_specifier_plugin_3 = std::make_shared<NiceMock<MockClusterSpecifierPlugin>>();
+
+  factory_context_.cluster_manager_.initializeClusters({"cluster1", "cluster2"}, {});
+
+  EXPECT_CALL(factory, createClusterSpecifierPlugin(_, _))
+      .WillRepeatedly(Invoke(
+          [mock_cluster_specifier_plugin_1, mock_cluster_specifier_plugin_2,
+           mock_cluster_specifier_plugin_3](
+              const Protobuf::Message& config,
+              Server::Configuration::CommonFactoryContext&) -> ClusterSpecifierPluginSharedPtr {
+            const auto& typed_config = dynamic_cast<const ProtobufWkt::Struct&>(config);
+            if (auto iter = typed_config.fields().find("a"); iter == typed_config.fields().end()) {
+              return nullptr;
+            } else if (iter->second.string_value() == "test1") {
+              return mock_cluster_specifier_plugin_1;
+            } else if (iter->second.string_value() == "test2") {
+              return mock_cluster_specifier_plugin_2;
+            } else if (iter->second.string_value() == "test3") {
+              return mock_cluster_specifier_plugin_3;
+            }
+            return nullptr;
+          }));
+
+  NiceMock<Envoy::StreamInfo::MockStreamInfo> stream_info;
+  TestConfigImpl config(parseRouteConfigurationFromYaml(yaml), factory_context_, true);
+
+  auto mock_route = std::make_shared<NiceMock<MockRoute>>();
+
+  EXPECT_CALL(*mock_cluster_specifier_plugin_2, route(_, _)).WillOnce(Return(mock_route));
+  EXPECT_EQ(mock_route.get(), config.route(genHeaders("some_cluster", "/foo", "GET"), 0).get());
+
+  EXPECT_CALL(*mock_cluster_specifier_plugin_3, route(_, _)).WillOnce(Return(mock_route));
+  EXPECT_EQ(mock_route.get(), config.route(genHeaders("some_cluster", "/bar", "GET"), 0).get());
+}
+#endif
+
 TEST_F(RouteMatcherTest, UnknownClusterSpecifierPluginName) {
   const std::string yaml = R"EOF(
 cluster_specifier_plugins:

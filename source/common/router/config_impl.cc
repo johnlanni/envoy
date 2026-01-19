@@ -534,6 +534,17 @@ RouteEntryImplBase::RouteEntryImplBase(const CommonVirtualHostSharedPtr& vhost,
         route.route().weighted_clusters(), metadata_match_criteria_.get(), route_name_,
         factory_context, creation_status);
     RETURN_ONLY_IF_NOT_OK_REF(creation_status);
+#if defined(HIGRESS)
+    if (route.route().weighted_clusters().has_inline_cluster_specifier_plugin()) {
+      cluster_specifier_plugin_ = getClusterSpecifierPluginByTheProto(
+          route.route().weighted_clusters().inline_cluster_specifier_plugin(), validator,
+          factory_context);
+    } else if (!route.route().weighted_clusters().cluster_specifier_plugin().empty()) {
+      cluster_specifier_plugin_ = vhost_->globalRouteConfig().clusterSpecifierPlugin(
+          route.route().weighted_clusters().cluster_specifier_plugin());
+    }
+#endif
+
   } else if (route.route().has_inline_cluster_specifier_plugin()) {
     auto plugin_or_error = getClusterSpecifierPluginByTheProto(
         route.route().inline_cluster_specifier_plugin(), validator, factory_context);
@@ -1208,13 +1219,116 @@ const RouteEntry* RouteEntryImplBase::routeEntry() const {
 RouteConstSharedPtr RouteEntryImplBase::clusterEntry(const Http::RequestHeaderMap& headers,
                                                      const StreamInfo::StreamInfo& stream_info,
                                                      uint64_t random_value) const {
-  if (cluster_specifier_plugin_ != nullptr) {
-    return cluster_specifier_plugin_->route(shared_from_this(), headers, stream_info, random_value);
+  // Gets the route object chosen from the list of weighted clusters
+  // (if there is one) or returns self.
+  if (weighted_clusters_config_ == nullptr) {
+    if (!cluster_name_.empty() || isDirectResponse()) {
+      return shared_from_this();
+    } else if (!cluster_header_name_.get().empty()) {
+      return pickClusterViaClusterHeader(cluster_header_name_, headers,
+                                         /*route_selector_override=*/nullptr);
+    } else {
+      // TODO(wbpcode): make the cluster header or weighted clusters an implementation of the
+      // cluster specifier plugin.
+      ASSERT(cluster_specifier_plugin_ != nullptr);
+      return cluster_specifier_plugin_->route(shared_from_this(), headers);
+    }
   }
-  return shared_from_this();
+  return pickWeightedCluster(headers, random_value, true);
 }
 
-absl::Status RouteEntryImplBase::validateClusters(const Upstream::ClusterManager& cm) const {
+RouteConstSharedPtr RouteEntryImplBase::pickWeightedCluster(const Http::HeaderMap& headers,
+                                                            const uint64_t random_value,
+                                                            const bool ignore_overflow) const {
+  absl::optional<uint64_t> random_value_from_header;
+  // Retrieve the random value from the header if corresponding header name is specified.
+  // weighted_clusters_config_ is known not to be nullptr here. If it were, pickWeightedCluster
+  // would not be called.
+  ASSERT(weighted_clusters_config_ != nullptr);
+  if (!weighted_clusters_config_->random_value_header_name_.empty()) {
+    const auto header_value = headers.get(
+        Envoy::Http::LowerCaseString(weighted_clusters_config_->random_value_header_name_));
+    if (!header_value.empty() && header_value.size() == 1) {
+      // We expect single-valued header here, otherwise it will potentially cause inconsistent
+      // weighted cluster picking throughout the process because different values are used to
+      // compute the selected value. So, we treat multi-valued header as invalid input and fall back
+      // to use internally generated random number.
+      uint64_t random_value = 0;
+      if (absl::SimpleAtoi(header_value[0]->value().getStringView(), &random_value)) {
+        random_value_from_header = random_value;
+      }
+    }
+
+    if (!random_value_from_header.has_value()) {
+      // Random value should be found here. But if it is not set due to some errors, log the
+      // information and fallback to the random value that is set by stream id.
+      ENVOY_LOG(debug, "The random value can not be found from the header and it will fall back to "
+                       "the value that is set by stream id");
+    }
+  }
+
+  const uint64_t selected_value =
+      (random_value_from_header.has_value() ? random_value_from_header.value() : random_value) %
+      weighted_clusters_config_->total_cluster_weight_;
+  uint64_t begin = 0;
+  uint64_t end = 0;
+
+  // Find the right cluster to route to based on the interval in which
+  // the selected value falls. The intervals are determined as
+  // [0, cluster1_weight), [cluster1_weight, cluster1_weight+cluster2_weight),..
+  for (const WeightedClusterEntrySharedPtr& cluster :
+       weighted_clusters_config_->weighted_clusters_) {
+    end = begin + cluster->clusterWeight();
+    if (!ignore_overflow) {
+      // end > total_cluster_weight: This case can only occur with Runtimes,
+      // when the user specifies invalid weights such that
+      // sum(weights) > total_cluster_weight.
+      ASSERT(end <= weighted_clusters_config_->total_cluster_weight_);
+    }
+
+    if (selected_value >= begin && selected_value < end) {
+#if defined(HIGRESS)
+      if (cluster_specifier_plugin_ != nullptr) {
+        auto request_header = dynamic_cast<const Http::RequestHeaderMap*>(&headers);
+        if (!cluster->clusterHeaderName().get().empty() &&
+            !headers.get(cluster->clusterHeaderName()).empty()) {
+          auto route = pickClusterViaClusterHeader(cluster->clusterHeaderName(), headers,
+                                                   static_cast<RouteEntryAndRoute*>(cluster.get()));
+          return cluster_specifier_plugin_->route(route, *request_header);
+        }
+        return cluster_specifier_plugin_->route(cluster, *request_header);
+      }
+#endif
+      if (!cluster->clusterHeaderName().get().empty() &&
+          !headers.get(cluster->clusterHeaderName()).empty()) {
+        return pickClusterViaClusterHeader(cluster->clusterHeaderName(), headers,
+                                           static_cast<RouteEntryAndRoute*>(cluster.get()));
+      }
+      // The WeightedClusterEntry does not contain reference to the RouteEntryImplBase to
+      // avoid circular reference. To ensure that the RouteEntryImplBase is not destructed
+      // before the WeightedClusterEntry, additional wrapper is used to hold the reference
+      // to the RouteEntryImplBase.
+      return std::make_shared<DynamicRouteEntry>(cluster.get(), shared_from_this(),
+                                                 cluster->clusterName());
+    }
+    begin = end;
+  }
+
+  PANIC("unexpected");
+}
+
+void RouteEntryImplBase::validateClusters(
+    const Upstream::ClusterManager::ClusterInfoMaps& cluster_info_maps) const {
+  if (isDirectResponse()) {
+    return;
+  }
+
+  // Currently, we verify that the cluster exists in the CM if we have an explicit cluster or
+  // weighted cluster rule. We obviously do not verify a cluster_header rule. This means that
+  // trying to use all CDS clusters with a static route table will not work. In the upcoming RDS
+  // change we will make it so that dynamically loaded route tables do *not* perform CM checks.
+  // In the future we might decide to also have a config option that turns off checks for static
+  // route tables. This would enable the all CDS with static route table case.
   if (!cluster_name_.empty()) {
     return !cm.hasCluster(cluster_name_) ? absl::InvalidArgumentError(fmt::format(
                                                "route: unknown cluster '{}'", cluster_name_))
