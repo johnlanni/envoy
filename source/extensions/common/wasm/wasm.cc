@@ -89,7 +89,7 @@ WasmEvent failStateToWasmEvent(FailState state) {
   PANIC("corrupt enum");
 }
 
-const int MIN_RECOVER_INTERVAL_SECONDS = 5;
+const int MIN_RECOVER_INTERVAL_SECONDS = 1;
 #endif
 
 } // namespace
@@ -186,7 +186,7 @@ Wasm::~Wasm() {
 }
 
 #if defined(HIGRESS)
-bool PluginHandleSharedPtrThreadLocal::recover() {
+bool PluginHandleSharedPtrThreadLocal::rebuild(bool is_fail_recovery) {
   if (handle == nullptr || handle->wasmHandle() == nullptr ||
       handle->wasmHandle()->wasm() == nullptr) {
     ENVOY_LOG(warn, "wasm has not been initialized");
@@ -195,16 +195,22 @@ bool PluginHandleSharedPtrThreadLocal::recover() {
   auto& dispatcher = handle->wasmHandle()->wasm()->dispatcher();
   auto now = dispatcher.timeSource().monotonicTime() + cache_time_offset_for_testing;
   if (now - last_recover_time_ < std::chrono::seconds(MIN_RECOVER_INTERVAL_SECONDS)) {
-    ENVOY_LOG(debug, "recover interval has not been reached");
+    ENVOY_LOG(info, "rebuild interval has not been reached");
     return false;
   }
-  // Even if recovery fails, it will be retried after the interval
+  // Even if rebuild fails, it will be retried after the interval
   last_recover_time_ = now;
   std::shared_ptr<PluginHandleBase> new_handle;
   if (handle->rebuild(new_handle)) {
     handle = std::static_pointer_cast<PluginHandle>(new_handle);
-    handle->wasmHandle()->wasm()->lifecycleStats().recover_total_.inc();
-    ENVOY_LOG(info, "wasm vm recover from crash success");
+    // Increment appropriate metrics based on rebuild type
+    if (is_fail_recovery) {
+      handle->wasmHandle()->wasm()->lifecycleStats().recover_total_.inc();
+      ENVOY_LOG(info, "wasm vm recover from crash success");
+    } else {
+      handle->wasmHandle()->wasm()->lifecycleStats().rebuild_total_.inc();
+      ENVOY_LOG(info, "wasm vm rebuild success");
+    }
     return true;
   }
   return false;
@@ -565,6 +571,23 @@ Wasm* PluginConfig::maybeReloadHandleIfNeeded(SinglePluginHandle& handle_wrapper
   }
 
   Wasm* wasm = getWasmOrNull(handle_wrapper.handle->wasmHandle());
+
+#if defined(HIGRESS)
+  // Check if plugin requested a rebuild (e.g., for memory optimization)
+  if (wasm != nullptr && !wasm->isFailed() && wasm->shouldRebuild()) {
+    ENVOY_LOG(info, "wasm vm requested rebuild, try to rebuild");
+    if (handle_wrapper.rebuild(false)) {
+      ENVOY_LOG(info, "wasm vm rebuild success");
+      wasm = getWasmOrNull(handle_wrapper.handle->wasmHandle());
+      if (wasm != nullptr) {
+        wasm->setShouldRebuild(false);
+      }
+    } else {
+      ENVOY_LOG(info, "wasm vm rebuild failed, still using the stale one");
+    }
+    return wasm;
+  }
+#endif
 
   // Only runtime failure will be handled by reloading logic. If the wasm is not failed or
   // failed with other errors, return it directly.

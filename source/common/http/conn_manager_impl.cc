@@ -2416,15 +2416,28 @@ void ConnectionManagerImpl::ActiveStream::recreateStream(
 
   Buffer::InstancePtr request_data = std::make_unique<Buffer::OwnedImpl>();
 #if defined(HIGRESS)
-  // TODO(higress): In 1.36+, originalBufferedRequestData() doesn't exist.
-  // Using bufferedRequestData() for now - may need to add original data tracking later.
-  UNREFERENCED_PARAMETER(use_original_request_body);
-#endif
+  bool proxy_body = false;
+  const auto& original_buffered_request_data = filter_manager_.originalBufferedRequestData();
+  if (use_original_request_body && original_buffered_request_data != nullptr &&
+      original_buffered_request_data->length() > 0) {
+    proxy_body = true;
+    request_data->move(*original_buffered_request_data);
+  } else {
+    const auto& buffered_request_data = filter_manager_.bufferedRequestData();
+    proxy_body = buffered_request_data != nullptr && buffered_request_data->length() > 0;
+    if (proxy_body) {
+      request_data->move(*buffered_request_data);
+    }
+  }
+  const auto& original_remote_address =
+      filter_manager_.streamInfo().downstreamAddressProvider().remoteAddress();
+#else
   const auto& buffered_request_data = filter_manager_.bufferedRequestData();
   const bool proxy_body = buffered_request_data != nullptr && buffered_request_data->length() > 0;
   if (proxy_body) {
     request_data->move(*buffered_request_data);
   }
+#endif
 
   response_encoder->getStream().removeCallbacks(*this);
 
@@ -2435,6 +2448,11 @@ void ConnectionManagerImpl::ActiveStream::recreateStream(
   connection_manager_.doEndStream(*this, /*check_for_deferred_close*/ false);
 
   RequestDecoder& new_stream = connection_manager_.newStream(*response_encoder, true);
+
+#if defined(HIGRESS)
+  auto& active_stream = static_cast<ActiveStream&>(new_stream);
+  active_stream.filter_manager_.setDownstreamRemoteAddress(original_remote_address);
+#endif
 
   // Set the new RequestDecoder on the ResponseEncoder. Even though all of the decoder callbacks
   // have already been called at this point, the encoder still needs the new decoder for deferred

@@ -92,6 +92,8 @@ public:
 
 #if defined(HIGRESS)
   LifecycleStats& lifecycleStats() { return lifecycle_stats_handler_.stats(); }
+  bool shouldRebuild() const { return should_rebuild_; }
+  void setShouldRebuild(bool value) { should_rebuild_ = value; }
 #endif
 
 protected:
@@ -123,6 +125,9 @@ protected:
   CreateContextFn create_root_context_for_testing_;
   Network::DnsResolverSharedPtr dns_resolver_;
   uint32_t dns_token_ = 1;
+#if defined(HIGRESS)
+  bool should_rebuild_ = false;
+#endif
 };
 using WasmSharedPtr = std::shared_ptr<Wasm>;
 
@@ -167,7 +172,7 @@ public:
       : handle(std::move(h)), last_load(t) {}
   PluginHandleSharedPtrThreadLocal() = default;
 
-  bool recover();
+  bool rebuild(bool is_fail_recovery = false);
 
 private:
   MonotonicTime last_recover_time_;
