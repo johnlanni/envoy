@@ -22,6 +22,12 @@
 namespace Envoy {
 namespace Http {
 
+#if defined(HIGRESS)
+#define HIGRESS_EXT_HTTP_CONN_MAN_STATS(COUNTER, GAUGE, HISTOGRAM)                                 \
+  COUNTER(downstream_rq_retry_scope_found_total)                                                   \
+  COUNTER(downstream_rq_retry_scope_not_found_total)
+#endif
+
 /**
  * All stats for the connection manager. @see stats_macros.h
  */
@@ -93,6 +99,10 @@ namespace Http {
  */
 struct ConnectionManagerNamedStats {
   ALL_HTTP_CONN_MAN_STATS(GENERATE_COUNTER_STRUCT, GENERATE_GAUGE_STRUCT, GENERATE_HISTOGRAM_STRUCT)
+#if defined(HIGRESS)
+  HIGRESS_EXT_HTTP_CONN_MAN_STATS(GENERATE_COUNTER_STRUCT, GENERATE_GAUGE_STRUCT,
+                                  GENERATE_HISTOGRAM_STRUCT)
+#endif
 };
 
 struct ConnectionManagerStats {
