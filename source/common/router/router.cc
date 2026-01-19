@@ -987,7 +987,11 @@ Http::FilterDataStatus Filter::decodeData(Buffer::Instance& data, bool end_strea
 
   bool retry_enabled = retry_state_ && retry_state_->enabled();
   bool redirect_enabled = route_entry_ && route_entry_->internalRedirectPolicy().enabled();
+#if defined(HIGRESS)
+  bool buffering = retry_enabled || redirect_enabled || callbacks_->needBuffering();
+#else
   bool buffering = retry_enabled || redirect_enabled;
+#endif
   uint64_t effective_buffer_limit = calculateEffectiveBufferLimit();
 
   // Check if we would exceed buffer limits, regardless of current buffering state

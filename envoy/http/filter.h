@@ -575,6 +575,12 @@ public:
    * Allows modifying the decoding buffer. May only be called before any data has been continued
    * past the calling filter.
    */
+#if defined(HIGRESS)
+  virtual void modifyDecodingBuffer(std::function<void(Buffer::Instance&)> callback,
+                                    bool /* backup_for_replace */) {
+    return modifyDecodingBuffer(callback);
+  }
+#endif
   virtual void modifyDecodingBuffer(std::function<void(Buffer::Instance&)> callback) PURE;
 
   /**
@@ -807,6 +813,12 @@ public:
    * @param original_response_headers Headers used for logging in the access logs and for charging
    * stats. Ignored if null.
    */
+#if defined(HIGRESS)
+  virtual bool recreateStream(const ResponseHeaderMap* original_response_headers,
+                              bool /* use_original_request_body */) {
+    return recreateStream(original_response_headers);
+  }
+#endif
   virtual bool recreateStream(const ResponseHeaderMap* original_response_headers) PURE;
 
   /**
@@ -841,6 +853,11 @@ public:
    * @return true if the filter should shed load based on the system pressure, typically memory.
    */
   virtual bool shouldLoadShed() const PURE;
+
+#if defined(HIGRESS)
+  virtual bool needBuffering() const { return false; }
+  virtual void setNeedBuffering(bool) {}
+#endif
 };
 
 /**
