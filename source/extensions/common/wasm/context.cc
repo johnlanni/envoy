@@ -236,7 +236,11 @@ void Context::onCloseTCP() {
 void Context::onResolveDns(uint32_t token, Envoy::Network::DnsResolver::ResolutionStatus status,
                            std::list<Envoy::Network::DnsResponse>&& response) {
   proxy_wasm::DeferAfterCallActions actions(this);
+#if defined(HIGRESS)
+  if (isFailed() || !wasm()->on_resolve_dns_) {
+#else
   if (wasm()->isFailed() || !wasm()->on_resolve_dns_) {
+#endif
     return;
   }
   if (status != Network::DnsResolver::ResolutionStatus::Completed) {
@@ -284,7 +288,11 @@ template <typename I> inline char* align(char* p) {
 
 void Context::onStatsUpdate(Envoy::Stats::MetricSnapshot& snapshot) {
   proxy_wasm::DeferAfterCallActions actions(this);
+#if defined(HIGRESS)
+  if (isFailed() || !wasm()->on_stats_update_) {
+#else
   if (wasm()->isFailed() || !wasm()->on_stats_update_) {
+#endif
     return;
   }
   // buffer format:
@@ -1125,7 +1133,7 @@ WasmResult Context::redisCall(std::string_view cluster, std::string_view query,
 }
 
 void Context::onRedisCallSuccess(uint32_t token, std::string&& response) {
-  if (wasm()->isFailed()) {
+  if (isFailed()) {
     redis_request_.erase(token);
     return;
   }
@@ -1155,7 +1163,7 @@ void Context::onRedisCallSuccess(uint32_t token, std::string&& response) {
 }
 
 void Context::onRedisCallFailure(uint32_t token) {
-  if (wasm()->isFailed()) {
+  if (isFailed()) {
     redis_request_.erase(token);
     return;
   }
@@ -1943,8 +1951,15 @@ WasmResult Context::sendLocalResponse(uint32_t response_code, std::string_view b
           grpc_status <= Grpc::Status::WellKnownGrpcStatus::MaximumKnown) {
         grpc_status_code = Grpc::Status::WellKnownGrpcStatus(grpc_status);
       }
+#if defined(HIGRESS)
+      auto wasm_details = absl::StrFormat("via_wasm%s%s", plugin_ ? "::" + plugin()->name_ : "",
+                                          details.empty() ? "" : "::" + details);
+      decoder_callbacks_->sendLocalReply(static_cast<Envoy::Http::Code>(response_code), body_text,
+                                         modify_headers, grpc_status_code, wasm_details);
+#else
       decoder_callbacks_->sendLocalReply(static_cast<Envoy::Http::Code>(response_code), body_text,
                                          modify_headers, grpc_status_code, details);
+#endif
     });
   }
   return WasmResult::Ok;
@@ -2146,7 +2161,7 @@ void Context::setEncoderFilterCallbacks(Envoy::Http::StreamEncoderFilterCallback
 void Context::onHttpCallSuccess(uint32_t token, Envoy::Http::ResponseMessagePtr&& response) {
   // TODO: convert this into a function in proxy-wasm-cpp-host and use here.
 #if defined(HIGRESS)
-  if (wasm()->isFailed()) {
+  if (isFailed()) {
     http_request_.erase(token);
     return;
   }
@@ -2176,7 +2191,7 @@ void Context::onHttpCallSuccess(uint32_t token, Envoy::Http::ResponseMessagePtr&
 
 void Context::onHttpCallFailure(uint32_t token, Http::AsyncClient::FailureReason reason) {
 #if defined(HIGRESS)
-  if (wasm()->isFailed()) {
+  if (isFailed()) {
     http_request_.erase(token);
     return;
   }
@@ -2212,7 +2227,7 @@ void Context::onGrpcReceiveWrapper(uint32_t token, ::Envoy::Buffer::InstancePtr 
     }
   };
 #if defined(HIGRESS)
-  if (wasm()->isFailed()) {
+  if (isFailed()) {
     cleanup();
     return;
   }
@@ -2254,7 +2269,7 @@ void Context::onGrpcCloseWrapper(uint32_t token, const Grpc::Status::GrpcStatus&
     }
   };
 #if defined(HIGRESS)
-  if (wasm()->isFailed()) {
+  if (isFailed()) {
     cleanup();
     return;
   }
