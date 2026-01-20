@@ -7682,16 +7682,17 @@ virtual_hosts:
   )EOF";
   NiceMock<Envoy::StreamInfo::MockStreamInfo> stream_info;
   factory_context_.cluster_manager_.initializeClusters({"www2"}, {});
-  TestConfigImpl config(parseRouteConfigurationFromYaml(yaml), factory_context_, true);
+  TestConfigImpl config(parseRouteConfigurationFromYaml(yaml), factory_context_, true,
+                        creation_status_);
   Http::TestRequestHeaderMapImpl headers = genHeaders("www.lyft.com", "/new_endpoint/foo", "GET");
   const RouteEntry* route = config.route(headers, 0)->routeEntry();
   EXPECT_CALL(stream_info, setDynamicMetadata(_, _))
       .WillOnce(Invoke([&](const std::string& name,
-                           const ProtobufWkt::Struct& returned_dynamic_metadata) -> void {
+                           const Protobuf::Struct& returned_dynamic_metadata) -> void {
         EXPECT_EQ("mse.data", name);
 
-        std::unique_ptr<ProtobufWkt::Struct> dynamic_metadata =
-            std::make_unique<ProtobufWkt::Struct>();
+        std::unique_ptr<Protobuf::Struct> dynamic_metadata =
+            std::make_unique<Protobuf::Struct>();
         auto* fields = dynamic_metadata->mutable_fields();
         (*fields)["original_path"] = ValueUtil::stringValue("/new_endpoint/foo");
         EXPECT_TRUE(TestUtility::protoEqual(returned_dynamic_metadata, *dynamic_metadata));
@@ -7700,7 +7701,8 @@ virtual_hosts:
             returned_dynamic_metadata);
       }));
 
-  route->finalizeRequestHeaders(headers, stream_info, false);
+  const Formatter::HttpFormatterContext formatter_context(&headers);
+  route->finalizeRequestHeaders(headers, formatter_context, stream_info, false);
   auto transforms = route->requestHeaderTransforms(stream_info);
   EXPECT_THAT(transforms.headers_to_append_or_add,
               ElementsAre(Pair(Http::LowerCaseString("x-original-path"), "/new_endpoint/foo"),
@@ -7741,17 +7743,18 @@ virtual_hosts:
   )EOF";
   NiceMock<Envoy::StreamInfo::MockStreamInfo> stream_info;
   factory_context_.cluster_manager_.initializeClusters({"www2"}, {});
-  TestConfigImpl config(parseRouteConfigurationFromYaml(yaml), factory_context_, true);
+  TestConfigImpl config(parseRouteConfigurationFromYaml(yaml), factory_context_, true,
+                        creation_status_);
   Http::TestRequestHeaderMapImpl headers = genHeaders("www.lyft.com", "/new_endpoint/foo", "GET");
   const RouteEntry* route = config.route(headers, 0)->routeEntry();
   
   EXPECT_CALL(stream_info, setDynamicMetadata(_, _))
       .WillOnce(Invoke([&](const std::string& name,
-                           const ProtobufWkt::Struct& returned_dynamic_metadata) -> void {
+                           const Protobuf::Struct& returned_dynamic_metadata) -> void {
         EXPECT_EQ("mse.data", name);
 
-        std::unique_ptr<ProtobufWkt::Struct> dynamic_metadata =
-            std::make_unique<ProtobufWkt::Struct>();
+        std::unique_ptr<Protobuf::Struct> dynamic_metadata =
+            std::make_unique<Protobuf::Struct>();
         auto* fields = dynamic_metadata->mutable_fields();
         (*fields)["original_path"] = ValueUtil::stringValue("/new_endpoint/foo");
         EXPECT_TRUE(TestUtility::protoEqual(returned_dynamic_metadata, *dynamic_metadata));
@@ -7760,7 +7763,8 @@ virtual_hosts:
             returned_dynamic_metadata);
       }));
 
-  route->finalizeRequestHeaders(headers, stream_info, false);
+  const Formatter::HttpFormatterContext formatter_context(&headers);
+  route->finalizeRequestHeaders(headers, formatter_context, stream_info, false);
   auto transforms = route->requestHeaderTransforms(stream_info);
   EXPECT_THAT(transforms.headers_to_append_or_add,
               ElementsAre(Pair(Http::LowerCaseString("x-original-path"), "/new_endpoint/foo")));
@@ -7798,17 +7802,18 @@ request_headers_to_add:
   )EOF";
   NiceMock<Envoy::StreamInfo::MockStreamInfo> stream_info;
   factory_context_.cluster_manager_.initializeClusters({"www2"}, {});
-  TestConfigImpl config(parseRouteConfigurationFromYaml(yaml), factory_context_, true);
+  TestConfigImpl config(parseRouteConfigurationFromYaml(yaml), factory_context_, true,
+                        creation_status_);
   Http::TestRequestHeaderMapImpl headers = genHeaders("www.lyft.com", "/new_endpoint/foo", "GET");
   const RouteEntry* route = config.route(headers, 0)->routeEntry();
 
   EXPECT_CALL(stream_info, setDynamicMetadata(_, _))
       .WillOnce(Invoke([&](const std::string& name,
-                           const ProtobufWkt::Struct& returned_dynamic_metadata) -> void {
+                           const Protobuf::Struct& returned_dynamic_metadata) -> void {
         EXPECT_EQ("mse.data", name);
 
-        std::unique_ptr<ProtobufWkt::Struct> dynamic_metadata =
-            std::make_unique<ProtobufWkt::Struct>();
+        std::unique_ptr<Protobuf::Struct> dynamic_metadata =
+            std::make_unique<Protobuf::Struct>();
         auto* fields = dynamic_metadata->mutable_fields();
         (*fields)["original_path"] = ValueUtil::stringValue("/new_endpoint/foo");
         EXPECT_TRUE(TestUtility::protoEqual(returned_dynamic_metadata, *dynamic_metadata));
@@ -7817,7 +7822,8 @@ request_headers_to_add:
             returned_dynamic_metadata);
       }));
 
-  route->finalizeRequestHeaders(headers, stream_info, false);
+  const Formatter::HttpFormatterContext formatter_context(&headers);
+  route->finalizeRequestHeaders(headers, formatter_context, stream_info, false);
   auto transforms = route->requestHeaderTransforms(stream_info);
   EXPECT_THAT(transforms.headers_to_append_or_add,
               ElementsAre(Pair(Http::LowerCaseString("x-original-path"), "/new_endpoint/foo"),
@@ -7858,13 +7864,15 @@ virtual_hosts:
   )EOF";
   NiceMock<Envoy::StreamInfo::MockStreamInfo> stream_info;
   factory_context_.cluster_manager_.initializeClusters({"www2"}, {});
-  TestConfigImpl config(parseRouteConfigurationFromYaml(yaml), factory_context_, true);
+  TestConfigImpl config(parseRouteConfigurationFromYaml(yaml), factory_context_, true,
+                        creation_status_);
   Http::TestRequestHeaderMapImpl headers = genHeaders("www.lyft.com", "/new_endpoint/foo", "GET");
   const RouteEntry* route = config.route(headers, 0)->routeEntry();
 
   EXPECT_CALL(stream_info, setDynamicMetadata(_, _)).Times(0);
 
-  route->finalizeRequestHeaders(headers, stream_info, true);
+  const Formatter::HttpFormatterContext formatter_context(&headers);
+  route->finalizeRequestHeaders(headers, formatter_context, stream_info, true);
   EXPECT_EQ("/new_endpoint/foo", headers.get_("x-envoy-original-path"));
   auto transforms = route->requestHeaderTransforms(stream_info);
   EXPECT_THAT(transforms.headers_to_append_or_add,
@@ -7905,14 +7913,16 @@ request_headers_to_add:
   )EOF";
   NiceMock<Envoy::StreamInfo::MockStreamInfo> stream_info;
   factory_context_.cluster_manager_.initializeClusters({"www2"}, {});
-  TestConfigImpl config(parseRouteConfigurationFromYaml(yaml), factory_context_, true);
+  TestConfigImpl config(parseRouteConfigurationFromYaml(yaml), factory_context_, true,
+                        creation_status_);
   Http::TestRequestHeaderMapImpl headers =
       genHeaders("www.lyft.com", "/new_endpoint/test1/a", "GET");
   const RouteEntry* route = config.route(headers, 0)->routeEntry();
 
   EXPECT_CALL(stream_info, setDynamicMetadata(_, _)).Times(0);
 
-  route->finalizeRequestHeaders(headers, stream_info, true);
+  const Formatter::HttpFormatterContext formatter_context(&headers);
+  route->finalizeRequestHeaders(headers, formatter_context, stream_info, true);
 
   EXPECT_EQ("/new_endpoint/test1/a", headers.get_("x-envoy-original-path"));
 

@@ -6731,8 +6731,22 @@ TEST_F(RouterTest, AutoHostRewriteEnabled) {
 
   // :authority header in the outgoing request should match the DNS name of
   // the selected upstream host
-  EXPECT_CALL(encoder, encodeHeaders(HeaderMapEqualRef(&outgoing_headers), true))
-      .WillOnce(Invoke([&](const Http::HeaderMap&, bool) -> Http::Status {
+  EXPECT_CALL(encoder, encodeHeaders(_, true))
+      .WillOnce(Invoke([&](const Http::RequestHeaderMap& headers, bool) -> Http::Status {
+        // Verify the key headers that should match exactly
+        EXPECT_EQ(cm_.thread_local_cluster_.conn_pool_.host_->hostname_,
+                  headers.getHostValue());
+        EXPECT_EQ(req_host, headers.getEnvoyOriginalHostValue());
+        EXPECT_EQ(req_host, headers.getForwardedHostValue());
+#if defined(HIGRESS)
+        // Verify req-start-time header exists (value is dynamic timestamp)
+        auto req_start_time = headers.get(Http::CustomHeaders::get().AliExtendedValues.TriStartTime);
+        EXPECT_FALSE(req_start_time.empty()) << "req-start-time header should be present";
+        EXPECT_EQ(1, req_start_time.size()) << "req-start-time should have exactly one value";
+        // Verify it's a valid timestamp (numeric value)
+        EXPECT_FALSE(req_start_time[0]->value().getStringView().empty())
+            << "req-start-time should have a non-empty value";
+#endif
         encoder.stream_.resetStream(Http::StreamResetReason::RemoteReset);
         return Http::okStatus();
       }));

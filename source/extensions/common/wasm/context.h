@@ -463,6 +463,7 @@ protected:
       state_prototypes_;
 
   proxy_wasm::AbiVersion abi_version_{proxy_wasm::AbiVersion::Unknown};
+  bool allow_on_headers_stop_iteration_{false};
 };
 using ContextSharedPtr = std::shared_ptr<Context>;
 

@@ -143,11 +143,13 @@ TEST_P(AdminInstanceTest, Help) {
 #if defined(HIGRESS)
   const std::string expected = R"EOF(admin commands are:
   /: Admin home page
+  /allocprofiler (POST): enable/disable the allocation profiler (if supported)
+      enable: enable/disable the allocation profiler; One of (y, n)
   /certs: print certs on machine
   /clusters: upstream cluster status
   /config_dump: dump current Envoy configs (experimental)
       resource: The resource to dump
-      mask: The mask to apply. When both resource and mask are specified, the mask is applied to every element in the desired repeated field so that only a subset of fields are returned. The mask is parsed as a ProtobufWkt::FieldMask
+      mask: The mask to apply. When both resource and mask are specified, the mask is applied to every element in the desired repeated field so that only a subset of fields are returned. The mask is parsed as a Protobuf::FieldMask
       name_regex: Dump only the currently loaded configurations whose names match the specified regex. Can be used with both resource and mask query parameters.
       include_eds: Dump currently loaded configuration including EDS. See the response definition for more information
   /contention: dump current Envoy mutex contention stats (if enabled)
@@ -155,8 +157,8 @@ TEST_P(AdminInstanceTest, Help) {
       enable: enables the CPU profiler; One of (y, n)
   /drain_listeners (POST): drain listeners
       graceful: When draining listeners, enter a graceful drain period prior to closing listeners. This behaviour and duration is configurable via server options or CLI
+      skip_exit: When draining listeners, do not exit after the drain period. This must be used with graceful
       inboundonly: Drains all inbound listeners. traffic_direction field in envoy_v3_api_msg_config.listener.v3.Listener is used to determine whether a listener is inbound or outbound.
-  /endpoints: print endpoints info related the service
   /healthcheck/fail (POST): cause the server to fail health checks
   /healthcheck/ok (POST): cause the server to pass health checks
   /heap_dump: dump current Envoy heap (if supported)
@@ -165,12 +167,12 @@ TEST_P(AdminInstanceTest, Help) {
   /help: print out list of admin commands
   /hot_restart_version: print the hot restart compatibility version
   /init_dump: dump current Envoy init manager information (experimental)
-      mask: The desired component to dump unready targets. The mask is parsed as a ProtobufWkt::FieldMask. For example, get the unready targets of all listeners with /init_dump?mask=listener`
+      mask: The desired component to dump unready targets. The mask is parsed as a Protobuf::FieldMask. For example, get the unready targets of all listeners with /init_dump?mask=listener`
   /listeners: print listener info
       format: File format to use; One of (text, json)
   /logging (POST): query/change logging levels
-      paths: Change multiple logging levels by setting to <logger_name1>:<desired_level1>,<logger_name2>:<desired_level2>.
-      level: desired logging level; One of (, trace, debug, info, warning, error, critical, off)
+      paths: Change multiple logging levels by setting to <logger_name1>:<desired_level1>,<logger_name2>:<desired_level2>. If fine grain logging is enabled, use __FILE__ or a glob experision as the logger name. For example, source/common*:warning
+      level: desired logging level, this will change all loggers's level; One of (, trace, debug, info, warning, error, critical, off)
   /memory: print current allocation/heap usage
   /quitquitquit (POST): exit the server
   /ready: print server state, return 200 if LIVE, otherwise return 503
@@ -184,11 +186,12 @@ TEST_P(AdminInstanceTest, Help) {
       filter: Regular expression (Google re2) for filtering stats
       format: Format to use; One of (html, active-html, text, json)
       type: Stat types to include.; One of (All, Counters, Histograms, Gauges, TextReadouts)
-      histogram_buckets: Histogram bucket display mode; One of (cumulative, disjoint, detailed, none)
+      histogram_buckets: Histogram bucket display mode; One of (cumulative, disjoint, detailed, summary)
   /stats/prometheus: print server stats in prometheus format
       usedonly: Only include stats that have been written by system since restart
       text_readouts: Render text_readouts as new gaugues with value 0 (increases Prometheus data size)
       filter: Regular expression (Google re2) for filtering stats
+      histogram_buckets: Histogram bucket display mode; One of (cumulative, summary)
   /stats/recentlookups: Show recent stat-name lookups
   /stats/recentlookups/clear (POST): clear list of stat-name lookups and counter
   /stats/recentlookups/disable (POST): disable recording of reset stat-name lookup names

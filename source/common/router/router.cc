@@ -781,20 +781,6 @@ bool Filter::continueDecodeHeaders(Upstream::ThreadLocalCluster* cluster,
     headers.setEnvoyAttemptCount(attempt_count_);
   }
 
-  // The router has reached a point where it is going to try to send a request upstream,
-  // so now modify_headers should attach x-envoy-attempt-count to the downstream response if the
-  // config flag is true.
-  if (route_entry_->includeAttemptCountInResponse()) {
-    modify_headers = [modify_headers, this](Http::ResponseHeaderMap& headers) {
-      modify_headers(headers);
-
-      // This header is added without checking for config_.suppress_envoy_headers_ to mirror what is
-      // done for upstream requests.
-      headers.setEnvoyAttemptCount(attempt_count_);
-    };
-  }
-  callbacks_->streamInfo().setAttemptCount(attempt_count_);
-
 #if defined(HIGRESS)
   Http::HeaderString start_time;
   start_time.setInteger(std::chrono::duration_cast<std::chrono::milliseconds>(
@@ -804,8 +790,6 @@ bool Filter::continueDecodeHeaders(Upstream::ThreadLocalCluster* cluster,
                                        start_time.getStringView());
 #endif
 
-  route_entry_->finalizeRequestHeaders(headers, callbacks_->streamInfo(),
-                                       !config_.suppress_envoy_headers_);
   FilterUtility::setUpstreamScheme(
       headers, callbacks_->streamInfo().downstreamAddressProvider().sslConnection() != nullptr,
       host->transportSocketFactory().sslCtx() != nullptr,
@@ -1879,7 +1863,7 @@ void Filter::onUpstreamHeaders(uint64_t response_code, Http::ResponseHeaderMapPt
     headers->setReferenceKey(Http::CustomHeaders::get().AliExtendedValues.TriRespStartTime,
                              start_time.getStringView());
 
-    // The X-enel-upward-service-time request header is critical and is needed in the access log
+    // The X-envoy-upstream-service-time request header is critical and is needed in the access log
     // to record the processing time of the upstream service, so we need to output it.
     headers->setEnvoyUpstreamServiceTime(ms.count());
 #else

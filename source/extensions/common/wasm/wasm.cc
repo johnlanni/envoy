@@ -297,6 +297,8 @@ WasmEvent toWasmEvent(const std::shared_ptr<WasmHandleBase>& wasm) {
     return WasmEvent::ConfigureFailed;
   case FailState::RuntimeError:
     return WasmEvent::RuntimeError;
+  case FailState::RecoverError:
+    return WasmEvent::RuntimeError;
   }
   PANIC("corrupt enum");
 }
