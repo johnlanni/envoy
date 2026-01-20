@@ -9,6 +9,8 @@
 #include <string>
 #include <vector>
 
+#include "event2/watch.h"
+
 #include "envoy/buffer/buffer.h"
 #include "envoy/common/time.h"
 #include "envoy/event/dispatcher.h"
@@ -49,6 +51,7 @@
 #include "source/common/runtime/runtime_features.h"
 #include "source/common/stats/timespan_impl.h"
 #include "source/common/stream_info/utility.h"
+#include "source/common/event/dispatcher_impl.h"
 
 #include "absl/strings/escaping.h"
 #include "absl/strings/match.h"
@@ -65,6 +68,17 @@ const absl::string_view ConnectionManagerImpl::PrematureResetMinStreamLifetimeSe
 // I/O cycle. Requests over this limit are deferred until the next I/O cycle.
 const absl::string_view ConnectionManagerImpl::MaxRequestsPerIoCycle =
     "http.max_requests_per_io_cycle";
+#if defined(ALIMESH)
+// Runtime key for global maximum number of requests that can be processed from all connections
+// per I/O cycle on this thread. Requests over this limit are deferred until the next I/O cycle.
+const absl::string_view ConnectionManagerImpl::MaxTotalRequestsPerIoCycle =
+    "http.max_total_requests_per_io_cycle";
+
+// Initialize thread_local variables for global request limiting.
+thread_local uint64_t ConnectionManagerImpl::global_requests_during_current_event_loop_ = 0;
+thread_local uint64_t ConnectionManagerImpl::global_max_requests_per_io_cycle_ = UINT64_MAX;
+thread_local bool ConnectionManagerImpl::global_reset_watchers_registered_ = false;
+#endif
 
 bool requestWasConnect(const RequestHeaderMapSharedPtr& headers, Protocol protocol) {
   if (!headers) {
@@ -132,7 +146,21 @@ ConnectionManagerImpl::ConnectionManagerImpl(ConnectionManagerConfig& config,
       max_requests_during_dispatch_(
           runtime_.snapshot().getInteger(ConnectionManagerImpl::MaxRequestsPerIoCycle, UINT32_MAX)),
       refresh_rtt_after_request_(
-          Runtime::runtimeFeatureEnabled("envoy.reloadable_features.refresh_rtt_after_request")) {}
+#if defined(ALIMESH)
+          Runtime::runtimeFeatureEnabled("envoy.reloadable_features.refresh_rtt_after_request")) {
+  // Initialize global request limit from runtime configuration.
+  // Runtime value always takes priority if configured (not UINT64_MAX).
+  // This allows runtime to override values set via setGlobalMaxRequestsPerIoCycle().
+  uint64_t runtime_value =
+      runtime_.snapshot().getInteger(ConnectionManagerImpl::MaxTotalRequestsPerIoCycle, UINT64_MAX);
+  if (runtime_value != UINT64_MAX) {
+    global_max_requests_per_io_cycle_ = runtime_value;
+  }
+}
+#else
+          Runtime::runtimeFeatureEnabled("envoy.reloadable_features.refresh_rtt_after_request")) {
+}
+#endif
 
 const ResponseHeaderMap& ConnectionManagerImpl::continueHeader() {
   static const auto headers = createHeaderMap<ResponseHeaderMapImpl>(
@@ -148,6 +176,22 @@ void ConnectionManagerImpl::initializeReadFilterCallbacks(Network::ReadFilterCal
         dispatcher_->createSchedulableCallback([this]() -> void { onDeferredRequestProcessing(); });
   }
 
+#if defined(ALIMESH)
+  // Register event loop watchers to reset global counter at the start of each iteration.
+  // This is only registered once per thread (shared by all ConnectionManagerImpl instances).
+  if (global_max_requests_per_io_cycle_ != UINT64_MAX && !global_reset_watchers_registered_) {
+    registerGlobalResetWatchers();
+  }
+
+  // Create deferred request processing callback for global limits if needed.
+  // When global limits are enabled but per-connection limits are not, we still need
+  // this callback to process deferred requests.
+  if (global_max_requests_per_io_cycle_ != UINT64_MAX &&
+      deferred_request_processing_callback_ == nullptr) {
+    deferred_request_processing_callback_ =
+        dispatcher_->createSchedulableCallback([this]() -> void { onDeferredRequestProcessing(); });
+  }
+#endif
   stats_.named_.downstream_cx_total_.inc();
   stats_.named_.downstream_cx_active_.inc();
   if (read_callbacks_->connection().ssl()) {
@@ -965,6 +1009,13 @@ void ConnectionManagerImpl::ActiveStream::completeRequest() {
   if (state_.successful_upgrade_) {
     connection_manager_.stats_.named_.downstream_cx_upgrades_active_.dec();
   }
+
+#if defined(HIGRESS)
+  if (state_.deferred_to_next_io_iteration_) {
+    connection_manager_.stats_.named_.downstream_rq_deferred_.dec();
+  }
+  calculateCapacityUnits();
+#endif
 }
 
 void ConnectionManagerImpl::ActiveStream::resetIdleTimer() {
@@ -2305,6 +2356,10 @@ bool ConnectionManagerImpl::ActiveStream::onDeferredRequestProcessing() {
     return false;
   }
   state_.deferred_to_next_io_iteration_ = false;
+#if defined(ALIMESH)
+  // Decrement deferred gauge as this stream is now being processed
+  connection_manager_.stats_.named_.downstream_rq_deferred_.dec();
+#endif
   bool end_stream =
       state_.deferred_end_stream_ && deferred_data_ == nullptr && request_trailers_ == nullptr;
   filter_manager_.decodeHeaders(*request_headers_, end_stream);
@@ -2333,10 +2388,36 @@ bool ConnectionManagerImpl::shouldDeferRequestProxyingToNextIoCycle() {
   if (deferred_request_processing_callback_->enabled()) {
     return true;
   }
+#if defined(ALIMESH)
+  // Check global limit first (if enabled).
+  // The global counter is reset at the start of each event loop iteration via prepare watcher.
+  if (global_max_requests_per_io_cycle_ != UINT64_MAX) {
+    uint64_t old_value = global_requests_during_current_event_loop_;
+    ++global_requests_during_current_event_loop_;
+    ENVOY_CONN_LOG(debug,
+                   "global_requests_during_current_event_loop_ incremented: {} -> {} (max={})",
+                   read_callbacks_->connection(), old_value,
+                   global_requests_during_current_event_loop_, global_max_requests_per_io_cycle_);
+    if (global_requests_during_current_event_loop_ > global_max_requests_per_io_cycle_) {
+      // Exceeded global limit, defer this request to next I/O cycle.
+      deferred_request_processing_callback_->scheduleCallbackNextIteration();
+      ENVOY_CONN_LOG(debug, "request deferred due to global limit: current={}, max={}",
+                     read_callbacks_->connection(), global_requests_during_current_event_loop_,
+                     global_max_requests_per_io_cycle_);
+      stats_.named_.downstream_rq_deferred_.inc();
+      return true;
+    }
+  }
+
+  // Check per-connection limit.
+#endif
   ++requests_during_dispatch_count_;
   bool defer = requests_during_dispatch_count_ > max_requests_during_dispatch_;
   if (defer) {
     deferred_request_processing_callback_->scheduleCallbackNextIteration();
+#if defined(ALIMESH)
+    stats_.named_.downstream_rq_deferred_.inc();
+#endif
   }
   return defer;
 }
@@ -2345,6 +2426,15 @@ void ConnectionManagerImpl::onDeferredRequestProcessing() {
   if (streams_.empty()) {
     return;
   }
+#if defined(ALIMESH)
+  // Check if global limit is already exceeded by other connections in this I/O cycle.
+  // If so, we need to defer again and not process any streams.
+  if (global_max_requests_per_io_cycle_ != UINT64_MAX &&
+      global_requests_during_current_event_loop_ >= global_max_requests_per_io_cycle_) {
+    deferred_request_processing_callback_->scheduleCallbackNextIteration();
+    return;
+  }
+#endif
   requests_during_dispatch_count_ = 1; // 1 stream is always let through
   // Streams are inserted at the head of the list. As such process deferred
   // streams in the reverse order.
@@ -2363,6 +2453,68 @@ void ConnectionManagerImpl::onDeferredRequestProcessing() {
     // TODO(yanavlasov): see if `rend` can be used.
   } while (!at_first_element);
 }
+
+#if defined(ALIMESH)
+// Static methods for ConnectionManagerImpl to get/set the global maximum requests per I/O cycle.
+uint64_t ConnectionManagerImpl::getGlobalMaxRequestsPerIoCycle() {
+  return global_max_requests_per_io_cycle_;
+}
+
+void ConnectionManagerImpl::setGlobalMaxRequestsPerIoCycle(uint64_t value) {
+  uint64_t old_value = global_max_requests_per_io_cycle_;
+
+  // Only allow setting a lower value to ensure the most restrictive limit is used.
+  // Note: Runtime configuration can override this value on next ConnectionManagerImpl construction.
+  if (value >= old_value) {
+    ENVOY_LOG(debug,
+              "global max requests per I/O cycle not updated: {} (current) vs {} (requested), "
+              "keeping lower limit",
+              old_value, value);
+    return;
+  }
+
+  global_max_requests_per_io_cycle_ = value;
+  ENVOY_LOG(info, "global max requests per I/O cycle updated: {} -> {}", old_value, value);
+}
+
+// Global functions to get/set the global maximum requests per I/O cycle.
+// These are designed to be called by Wasm foreign functions.
+uint64_t setGlobalMaxRequestsPerIoCycleForWasm(uint64_t value) {
+  uint64_t old_value = ConnectionManagerImpl::getGlobalMaxRequestsPerIoCycle();
+  ConnectionManagerImpl::setGlobalMaxRequestsPerIoCycle(value);
+  return old_value;
+}
+
+uint64_t getGlobalMaxRequestsPerIoCycleForWasm() {
+  return ConnectionManagerImpl::getGlobalMaxRequestsPerIoCycle();
+}
+
+// Register event loop prepare watchers to reset global counter.
+// This uses libevent's evwatch mechanism to ensure the callback runs at the start
+// of each event loop iteration, before I/O polling.
+void ConnectionManagerImpl::registerGlobalResetWatchers() {
+  global_reset_watchers_registered_ = true;
+
+  // Get the dispatcher's libevent base
+  auto& dispatcher_impl =
+      static_cast<Event::DispatcherImpl&>(read_callbacks_->connection().dispatcher());
+  event_base& base = dispatcher_impl.base();
+
+  // Register prepare watcher to reset global counter at the start of each event loop iteration
+  evwatch_prepare_new(&base, &ConnectionManagerImpl::onEventLoopPrepareForGlobalReset, nullptr);
+}
+
+// Static callback for evwatch_prepare_new
+// Called at the start of each event loop iteration, before I/O polling
+void ConnectionManagerImpl::onEventLoopPrepareForGlobalReset(evwatch*,
+                                                             const evwatch_prepare_cb_info*,
+                                                             void*) {
+  // Reset global counter at the start of each event loop iteration
+  ENVOY_LOG(debug, "global_requests_during_current_event_loop_ reset: {} -> 0",
+            global_requests_during_current_event_loop_);
+  global_requests_during_current_event_loop_ = 0;
+}
+#endif
 
 } // namespace Http
 } // namespace Envoy

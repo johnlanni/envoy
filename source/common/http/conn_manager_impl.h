@@ -49,6 +49,10 @@
 #include "source/common/stream_info/stream_info_impl.h"
 #include "source/common/tracing/http_tracer_impl.h"
 
+// Forward declarations for libevent watcher types
+struct evwatch;
+struct evwatch_prepare_cb_info;
+
 namespace Envoy {
 namespace Http {
 
@@ -115,6 +119,22 @@ public:
   void setClearHopByHopResponseHeaders(bool value) { clear_hop_by_hop_response_headers_ = value; }
   bool clearHopByHopResponseHeaders() const { return clear_hop_by_hop_response_headers_; }
 
+#if defined(ALIMESH)
+  // Static methods to get/set the global maximum requests per I/O cycle.
+  // These can be called by Wasm modules via foreign functions to dynamically control
+  // the global request rate limit.
+  static uint64_t getGlobalMaxRequestsPerIoCycle();
+  static void setGlobalMaxRequestsPerIoCycle(uint64_t value);
+
+private:
+  // Register event loop prepare callback to reset global counter at the start of each iteration.
+  // This uses libevent's evwatch mechanism to ensure the callback runs before I/O polling.
+  void registerGlobalResetWatchers();
+
+  // Static callback for evwatch_prepare_new
+  static void onEventLoopPrepareForGlobalReset(evwatch*, const evwatch_prepare_cb_info* info, void* arg);
+#endif
+
   // This runtime key configures the number of streams which must be closed on a connection before
   // envoy will potentially drain a connection due to excessive prematurely reset streams.
   static const absl::string_view PrematureResetTotalStreamCountKey;
@@ -123,6 +143,11 @@ public:
   // prematurely closed.
   static const absl::string_view PrematureResetMinStreamLifetimeSecondsKey;
   static const absl::string_view MaxRequestsPerIoCycle;
+#if defined(ALIMESH)
+  // Runtime key for global maximum number of requests that can be processed from all connections
+  // per I/O cycle on this thread. Requests over this limit are deferred until the next I/O cycle.
+  static const absl::string_view MaxTotalRequestsPerIoCycle;
+#endif
 
 private:
   struct ActiveStream;
@@ -639,6 +664,13 @@ private:
   const uint32_t max_requests_during_dispatch_{UINT32_MAX};
   Event::SchedulableCallbackPtr deferred_request_processing_callback_;
 
+#if defined(ALIMESH)
+  // Thread-local global request limiting variables.
+  // These are shared across all ConnectionManagerImpl instances on this thread.
+  static thread_local uint64_t global_requests_during_current_event_loop_;
+  static thread_local uint64_t global_max_requests_per_io_cycle_;
+  static thread_local bool global_reset_watchers_registered_; // Tracks if watchers were registered
+#endif
   const bool refresh_rtt_after_request_{};
 };
 
