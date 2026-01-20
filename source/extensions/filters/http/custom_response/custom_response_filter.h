@@ -21,8 +21,13 @@ public:
   ::Envoy::Http::FilterHeadersStatus decodeHeaders(::Envoy::Http::RequestHeaderMap& header_map,
                                                    bool) override;
 
+  ::Envoy::Http::FilterDataStatus decodeData(Buffer::Instance&, bool) override;
+
+#if defined(ALIMESH)
   ::Envoy::Http::FilterHeadersStatus encodeHeaders(::Envoy::Http::ResponseHeaderMap& headers,
                                                    bool end_stream) override;
+#endif
+
   void setEncoderFilterCallbacks(::Envoy::Http::StreamEncoderFilterCallbacks& callbacks) override {
     encoder_callbacks_ = &callbacks;
   }
@@ -50,6 +55,7 @@ private:
   const std::shared_ptr<const FilterConfig> config_;
   ::Envoy::Http::RequestHeaderMap* downstream_headers_ = nullptr;
   bool on_local_reply_called_ = false;
+  bool has_checked_ = false;
 };
 
 } // namespace CustomResponse
