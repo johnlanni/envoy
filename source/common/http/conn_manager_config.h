@@ -25,7 +25,9 @@ namespace Http {
 #if defined(HIGRESS)
 #define HIGRESS_EXT_HTTP_CONN_MAN_STATS(COUNTER, GAUGE, HISTOGRAM)                                 \
   COUNTER(downstream_rq_retry_scope_found_total)                                                   \
-  COUNTER(downstream_rq_retry_scope_not_found_total)
+  COUNTER(downstream_rq_retry_scope_not_found_total)                                               \
+  COUNTER(downstream_rq_cu_total)                                                                  \
+  GAUGE(downstream_rq_deferred, Accumulate)
 #endif
 
 /**

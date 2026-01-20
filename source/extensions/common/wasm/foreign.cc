@@ -5,6 +5,16 @@
 #include "source/extensions/common/wasm/ext/verify_signature.pb.h"
 #include "source/extensions/common/wasm/wasm.h"
 
+// Forward declarations for global functions defined in conn_manager_impl.cc
+#if defined(HIGRESS)
+namespace Envoy {
+namespace Http {
+uint64_t setGlobalMaxRequestsPerIoCycleForWasm(uint64_t value);
+uint64_t getGlobalMaxRequestsPerIoCycleForWasm();
+} // namespace Http
+} // namespace Envoy
+#endif
+
 #if defined(WASM_USE_CEL_PARSER)
 #include "eval/public/builtin_func_registrar.h"
 #include "eval/public/cel_expr_builder_factory.h"
@@ -338,11 +348,11 @@ RegisterForeignFunction
                                            createFromClass<DeclarePropertyFactory>());
 
 #if defined(HIGRESS)
-class InjectEncodedDataToFilterChainFactory: public Logger::Loggable<Logger::Id::wasm> {
+class InjectEncodedDataToFilterChainFactory : public Logger::Loggable<Logger::Id::wasm> {
 public:
   WasmForeignFunction create(std::shared_ptr<InjectEncodedDataToFilterChainFactory> self) const {
     WasmForeignFunction f = [self](WasmBase&, std::string_view arguments,
-                                    const std::function<void*(size_t size)>&) -> WasmResult {
+                                   const std::function<void*(size_t size)>&) -> WasmResult {
       envoy::source::extensions::common::wasm::InjectEncodedDataToFilterChainArguments args;
       if (args.ParseFromArray(arguments.data(), arguments.size())) {
         auto context = static_cast<Context*>(proxy_wasm::current_context_);
@@ -353,34 +363,66 @@ public:
     return f;
   }
 };
-RegisterForeignFunction
-    registerInjectEncodedDataToFilterChainFactory("inject_encoded_data_to_filter_chain",
-                                            createFromClass<InjectEncodedDataToFilterChainFactory>());
+RegisterForeignFunction registerInjectEncodedDataToFilterChainFactory(
+    "inject_encoded_data_to_filter_chain",
+    createFromClass<InjectEncodedDataToFilterChainFactory>());
 
-class InjectEncodedDataToFilterChainOnHeaderFactory: public Logger::Loggable<Logger::Id::wasm> {
-  public:
-    WasmForeignFunction create(std::shared_ptr<InjectEncodedDataToFilterChainOnHeaderFactory> self) const {
-      WasmForeignFunction f = [self](WasmBase&, std::string_view arguments,
-                                      const std::function<void*(size_t size)>&) -> WasmResult {
-        envoy::source::extensions::common::wasm::InjectEncodedDataToFilterChainArguments args;
-        if (args.ParseFromArray(arguments.data(), arguments.size())) {
-          auto context = static_cast<Context*>(proxy_wasm::current_context_);
-          return context->injectEncodedDataToFilterChainOnHeader(args.body(), args.endstream());
-        }
+class InjectEncodedDataToFilterChainOnHeaderFactory : public Logger::Loggable<Logger::Id::wasm> {
+public:
+  WasmForeignFunction
+  create(std::shared_ptr<InjectEncodedDataToFilterChainOnHeaderFactory> self) const {
+    WasmForeignFunction f = [self](WasmBase&, std::string_view arguments,
+                                   const std::function<void*(size_t size)>&) -> WasmResult {
+      envoy::source::extensions::common::wasm::InjectEncodedDataToFilterChainArguments args;
+      if (args.ParseFromArray(arguments.data(), arguments.size())) {
+        auto context = static_cast<Context*>(proxy_wasm::current_context_);
+        return context->injectEncodedDataToFilterChainOnHeader(args.body(), args.endstream());
+      }
+      return WasmResult::BadArgument;
+    };
+    return f;
+  }
+};
+RegisterForeignFunction registerInjectEncodedDataToFilterChainOnHeaderFactory(
+    "inject_encoded_data_to_filter_chain_on_header",
+    createFromClass<InjectEncodedDataToFilterChainOnHeaderFactory>());
+
+// Foreign function to set the global maximum requests per I/O cycle.
+// This allows Wasm modules to dynamically control the global request rate limit.
+// Arguments: uint64_t value - the maximum number of requests to process per I/O cycle
+// Returns: WasmResult::Ok on success, WasmResult::BadArgument if argument size is incorrect
+RegisterForeignFunction registerSetGlobalMaxRequestsPerIoCycle(
+    "set_global_max_requests_per_io_cycle",
+    [](WasmBase&, std::string_view arguments,
+       const std::function<void*(size_t size)>&) -> WasmResult {
+      if (arguments.size() != sizeof(uint64_t)) {
         return WasmResult::BadArgument;
-      };
-      return f;
-    }
-  };
-  RegisterForeignFunction
-      registerInjectEncodedDataToFilterChainOnHeaderFactory("inject_encoded_data_to_filter_chain_on_header",
-                                              createFromClass<InjectEncodedDataToFilterChainOnHeaderFactory>());
+      }
+      uint64_t max_requests = *reinterpret_cast<const uint64_t*>(arguments.data());
+      Envoy::Http::setGlobalMaxRequestsPerIoCycleForWasm(max_requests);
+      return WasmResult::Ok;
+    });
 
-class GetLogLevelFactory: public Logger::Loggable<Logger::Id::wasm> {
+// Foreign function to get the current global maximum requests per I/O cycle.
+// Returns: uint64_t value - the current maximum number of requests per I/O cycle
+RegisterForeignFunction registerGetGlobalMaxRequestsPerIoCycle(
+    "get_global_max_requests_per_io_cycle",
+    [](WasmBase&, std::string_view,
+       const std::function<void*(size_t size)>& alloc_result) -> WasmResult {
+      auto result = reinterpret_cast<uint64_t*>(alloc_result(sizeof(uint64_t)));
+      if (result == nullptr) {
+        return WasmResult::InvalidMemoryAccess;
+      }
+      *result = Envoy::Http::getGlobalMaxRequestsPerIoCycleForWasm();
+      return WasmResult::Ok;
+    });
+
+class GetLogLevelFactory : public Logger::Loggable<Logger::Id::wasm> {
 public:
   WasmForeignFunction create(std::shared_ptr<GetLogLevelFactory> self) const {
-    WasmForeignFunction f = [self](WasmBase&, std::string_view,
-                                    const std::function<void*(size_t size)>& alloc_result) -> WasmResult {
+    WasmForeignFunction f =
+        [self](WasmBase&, std::string_view,
+               const std::function<void*(size_t size)>& alloc_result) -> WasmResult {
       auto context = static_cast<Context*>(proxy_wasm::current_context_);
       uint32_t level = context->getLogLevel();
       void* result_buf = alloc_result(sizeof(uint32_t));
@@ -393,9 +435,8 @@ public:
     return f;
   }
 };
-RegisterForeignFunction
-    registerGetLogLevelFactory("get_log_level",
-                                            createFromClass<GetLogLevelFactory>());
+RegisterForeignFunction registerGetLogLevelFactory("get_log_level",
+                                                   createFromClass<GetLogLevelFactory>());
 #endif
 
 } // namespace Wasm
