@@ -12,9 +12,16 @@ CONTRIB_EXTENSIONS = {
     #
     "envoy.filters.http.checksum":                              "//contrib/checksum/filters/http/source:config",
     "envoy.filters.http.dynamo":                                "//contrib/dynamo/filters/http/source:config",
+    "envoy.filters.http.http_dubbo_transcoder":                 "//contrib/http_dubbo_transcoder/filters/http/source:config",
     "envoy.filters.http.golang":                                "//contrib/golang/filters/http/source:config",
     "envoy.filters.http.language":                              "//contrib/language/filters/http/source:config_lib",
     "envoy.filters.http.sxg":                                   "//contrib/sxg/filters/http/source:config",
+
+    #
+    # Upstreams
+    #
+
+    "envoy.upstreams.http.dubbo_tcp":                           "//contrib/upstreams/http/dubbo_tcp/source:config",
 
     #
     # Network filters
@@ -49,10 +56,16 @@ CONTRIB_EXTENSIONS = {
     "envoy.tls.key_providers.qat":                              "//contrib/qat/private_key_providers/source:config",
 
     #
+    # Custom cluster plugins
+    #
+
+    "envoy.router.cluster_specifier_plugin.cluster_fallback":   "//contrib/custom_cluster_plugins/cluster_fallback/source:config",
+
+    #
     # Socket interface extensions
     #
 
-    "envoy.bootstrap.vcl":                                      "//contrib/vcl/source:config",
+    # "envoy.bootstrap.vcl":                                      "//contrib/vcl/source:config",
 
     #
     # Input matchers

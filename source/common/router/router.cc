@@ -781,6 +781,31 @@ bool Filter::continueDecodeHeaders(Upstream::ThreadLocalCluster* cluster,
     headers.setEnvoyAttemptCount(attempt_count_);
   }
 
+  // The router has reached a point where it is going to try to send a request upstream,
+  // so now modify_headers should attach x-envoy-attempt-count to the downstream response if the
+  // config flag is true.
+  if (route_entry_->includeAttemptCountInResponse()) {
+    modify_headers = [modify_headers, this](Http::ResponseHeaderMap& headers) {
+      modify_headers(headers);
+
+      // This header is added without checking for config_.suppress_envoy_headers_ to mirror what is
+      // done for upstream requests.
+      headers.setEnvoyAttemptCount(attempt_count_);
+    };
+  }
+  callbacks_->streamInfo().setAttemptCount(attempt_count_);
+
+#if defined(HIGRESS)
+  Http::HeaderString start_time;
+  start_time.setInteger(std::chrono::duration_cast<std::chrono::milliseconds>(
+                            callbacks_->streamInfo().startTime().time_since_epoch())
+                            .count());
+  downstream_headers_->setReferenceKey(Http::CustomHeaders::get().AliExtendedValues.TriStartTime,
+                                       start_time.getStringView());
+#endif
+
+  route_entry_->finalizeRequestHeaders(headers, callbacks_->streamInfo(),
+                                       !config_.suppress_envoy_headers_);
   FilterUtility::setUpstreamScheme(
       headers, callbacks_->streamInfo().downstreamAddressProvider().sslConnection() != nullptr,
       host->transportSocketFactory().sslCtx() != nullptr,
@@ -1831,9 +1856,37 @@ void Filter::onUpstreamHeaders(uint64_t response_code, Http::ResponseHeaderMapPt
     MonotonicTime response_received_time = dispatcher.timeSource().monotonicTime();
     std::chrono::milliseconds ms = std::chrono::duration_cast<std::chrono::milliseconds>(
         response_received_time - downstream_request_complete_time_);
+#if defined(HIGRESS)
+    std::chrono::milliseconds duration_ms = std::chrono::duration_cast<std::chrono::milliseconds>(
+        response_received_time - callbacks_->streamInfo().startTimeMonotonic());
+    Http::HeaderString cost_time;
+    cost_time.setInteger(duration_ms.count());
+    headers->setReferenceKey(Http::CustomHeaders::get().AliExtendedValues.TriCostTime,
+                             cost_time.getStringView());
+
+    Http::HeaderString arrive_time;
+    arrive_time.setInteger(std::chrono::duration_cast<std::chrono::milliseconds>(
+                               callbacks_->streamInfo().startTime().time_since_epoch())
+                               .count());
+    headers->setReferenceKey(Http::CustomHeaders::get().AliExtendedValues.TriArriveTime,
+                             arrive_time.getStringView());
+
+    SystemTime system_response_receive_time = dispatcher.timeSource().systemTime();
+    Http::HeaderString start_time;
+    start_time.setInteger(std::chrono::duration_cast<std::chrono::milliseconds>(
+                              system_response_receive_time.time_since_epoch())
+                              .count());
+    headers->setReferenceKey(Http::CustomHeaders::get().AliExtendedValues.TriRespStartTime,
+                             start_time.getStringView());
+
+    // The X-enel-upward-service-time request header is critical and is needed in the access log
+    // to record the processing time of the upstream service, so we need to output it.
+    headers->setEnvoyUpstreamServiceTime(ms.count());
+#else
     if (!config_->suppress_envoy_headers_) {
       headers->setEnvoyUpstreamServiceTime(ms.count());
     }
+#endif
   }
 
   upstream_request.upstreamCanary(

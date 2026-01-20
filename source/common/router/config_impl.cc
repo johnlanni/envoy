@@ -833,6 +833,16 @@ void RouteEntryImplBase::finalizeRequestHeaders(Http::RequestHeaderMap& headers,
   absl::optional<std::string> container;
   if (!getPathRewrite(headers, container).empty() || regex_rewrite_ != nullptr ||
       path_rewriter_ != nullptr) {
+#if defined(HIGRESS)
+    // We need to store the original path of access log when user enable the suppress_envoy_headers
+    // option.
+    if (!keep_original_host_or_path) {
+      const_cast<StreamInfo::StreamInfo&>(stream_info)
+          .setDynamicMetadata(
+              "mse.data",
+              MessageUtil::keyValueStruct("original_path", std::string(headers.getPathValue())));
+    }
+#endif
     rewritePathHeader(headers, keep_original_host_or_path);
   }
 }

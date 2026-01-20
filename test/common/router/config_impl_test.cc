@@ -55,6 +55,9 @@ using ::testing::NiceMock;
 using ::testing::Pair;
 using ::testing::Return;
 using ::testing::ReturnRef;
+#if defined(HIGRESS)
+using ::testing::ReturnPointee;
+#endif
 
 // Wrap ConfigImpl, the target of tests to allow us to regenerate the route_fuzz_test
 // corpus when run with:
@@ -7640,6 +7643,282 @@ request_headers_to_add:
   EXPECT_EQ("127.0.0.1", headers.get_("x-client-ip"));
   EXPECT_EQ("trace-id", headers.get_("trace-id-from-formatter"));
 }
+
+#if defined(HIGRESS)
+TEST_F(CustomRequestHeadersTest, AddMseOriginalPathHeader) {
+  const std::string yaml = R"EOF(
+virtual_hosts:
+- name: www2
+  domains:
+  - lyft.com
+  - www.lyft.com
+  - w.lyft.com
+  - ww.lyft.com
+  - wwww.lyft.com
+  request_headers_to_add:
+  - header:
+      key: x-client-ip
+      value: "%DOWNSTREAM_REMOTE_ADDRESS_WITHOUT_PORT%"
+  routes:
+  - match:
+      prefix: "/new_endpoint/test"
+    route:
+      prefix_rewrite: "/api/new_endpoint"
+      cluster: www2
+  - match:
+      prefix: "/new_endpoint/test1"
+    route:
+      prefix_rewrite: "/api/new_endpoint"
+      cluster: www2
+  - match:
+      prefix: "/new_endpoint"
+    route:
+      prefix_rewrite: "/api/new_endpoint"
+      cluster: www2
+    request_headers_to_add:
+    - header:
+        key: x-original-path
+        value: "%DYNAMIC_METADATA([\"mse.data\",\"original_path\"])%"
+  )EOF";
+  NiceMock<Envoy::StreamInfo::MockStreamInfo> stream_info;
+  factory_context_.cluster_manager_.initializeClusters({"www2"}, {});
+  TestConfigImpl config(parseRouteConfigurationFromYaml(yaml), factory_context_, true);
+  Http::TestRequestHeaderMapImpl headers = genHeaders("www.lyft.com", "/new_endpoint/foo", "GET");
+  const RouteEntry* route = config.route(headers, 0)->routeEntry();
+  EXPECT_CALL(stream_info, setDynamicMetadata(_, _))
+      .WillOnce(Invoke([&](const std::string& name,
+                           const ProtobufWkt::Struct& returned_dynamic_metadata) -> void {
+        EXPECT_EQ("mse.data", name);
+
+        std::unique_ptr<ProtobufWkt::Struct> dynamic_metadata =
+            std::make_unique<ProtobufWkt::Struct>();
+        auto* fields = dynamic_metadata->mutable_fields();
+        (*fields)["original_path"] = ValueUtil::stringValue("/new_endpoint/foo");
+        EXPECT_TRUE(TestUtility::protoEqual(returned_dynamic_metadata, *dynamic_metadata));
+
+        (*stream_info.metadata_.mutable_filter_metadata())[name].MergeFrom(
+            returned_dynamic_metadata);
+      }));
+
+  route->finalizeRequestHeaders(headers, stream_info, false);
+  auto transforms = route->requestHeaderTransforms(stream_info);
+  EXPECT_THAT(transforms.headers_to_append_or_add,
+              ElementsAre(Pair(Http::LowerCaseString("x-original-path"), "/new_endpoint/foo"),
+                          Pair(Http::LowerCaseString("x-client-ip"), "127.0.0.1")));
+  EXPECT_EQ("/api/new_endpoint/foo", headers.getPathValue());
+}
+
+TEST_F(CustomRequestHeadersTest, AddMseOriginalPathHeaderWithVS) {
+  const std::string yaml = R"EOF(
+virtual_hosts:
+- name: www2
+  domains:
+  - lyft.com
+  - www.lyft.com
+  - w.lyft.com
+  - ww.lyft.com
+  - wwww.lyft.com
+  request_headers_to_add:
+  - header:
+      key: x-original-path
+      value: "%DYNAMIC_METADATA([\"mse.data\",\"original_path\"])%"
+  routes:
+  - match:
+      prefix: "/new_endpoint"
+    route:
+      prefix_rewrite: "/api/new_endpoint"
+      cluster: www2
+  - match:
+      prefix: "/new_endpoint/test"
+    route:
+      prefix_rewrite: "/api/new_endpoint"
+      cluster: www2
+  - match:
+      prefix: "/new_endpoint/test1"
+    route:
+      prefix_rewrite: "/api/new_endpoint"
+      cluster: www2
+  )EOF";
+  NiceMock<Envoy::StreamInfo::MockStreamInfo> stream_info;
+  factory_context_.cluster_manager_.initializeClusters({"www2"}, {});
+  TestConfigImpl config(parseRouteConfigurationFromYaml(yaml), factory_context_, true);
+  Http::TestRequestHeaderMapImpl headers = genHeaders("www.lyft.com", "/new_endpoint/foo", "GET");
+  const RouteEntry* route = config.route(headers, 0)->routeEntry();
+  
+  EXPECT_CALL(stream_info, setDynamicMetadata(_, _))
+      .WillOnce(Invoke([&](const std::string& name,
+                           const ProtobufWkt::Struct& returned_dynamic_metadata) -> void {
+        EXPECT_EQ("mse.data", name);
+
+        std::unique_ptr<ProtobufWkt::Struct> dynamic_metadata =
+            std::make_unique<ProtobufWkt::Struct>();
+        auto* fields = dynamic_metadata->mutable_fields();
+        (*fields)["original_path"] = ValueUtil::stringValue("/new_endpoint/foo");
+        EXPECT_TRUE(TestUtility::protoEqual(returned_dynamic_metadata, *dynamic_metadata));
+
+        (*stream_info.metadata_.mutable_filter_metadata())[name].MergeFrom(
+            returned_dynamic_metadata);
+      }));
+
+  route->finalizeRequestHeaders(headers, stream_info, false);
+  auto transforms = route->requestHeaderTransforms(stream_info);
+  EXPECT_THAT(transforms.headers_to_append_or_add,
+              ElementsAre(Pair(Http::LowerCaseString("x-original-path"), "/new_endpoint/foo")));
+  EXPECT_EQ("/api/new_endpoint/foo", headers.getPathValue());
+}
+
+TEST_F(CustomRequestHeadersTest, AddMseOriginalPathHeaderWithRouteConfiguration) {
+  const std::string yaml = R"EOF(
+virtual_hosts:
+- name: www2
+  domains:
+  - lyft.com
+  - www.lyft.com
+  - w.lyft.com
+  - ww.lyft.com
+  - wwww.lyft.com
+  routes:
+  - match:
+      prefix: "/new_endpoint/test"
+    route:
+      prefix_rewrite: "/api/new_endpoint"
+      cluster: www2
+  - match:
+      prefix: "/new_endpoint"
+    route:
+      prefix_rewrite: "/api/new_endpoint"
+      cluster: www2
+request_headers_to_add:
+- header:
+    key: x-original-path
+    value: "%DYNAMIC_METADATA([\"mse.data\",\"original_path\"])%"
+- header:
+    key: x-client-ip
+    value: "%DOWNSTREAM_REMOTE_ADDRESS_WITHOUT_PORT%"
+  )EOF";
+  NiceMock<Envoy::StreamInfo::MockStreamInfo> stream_info;
+  factory_context_.cluster_manager_.initializeClusters({"www2"}, {});
+  TestConfigImpl config(parseRouteConfigurationFromYaml(yaml), factory_context_, true);
+  Http::TestRequestHeaderMapImpl headers = genHeaders("www.lyft.com", "/new_endpoint/foo", "GET");
+  const RouteEntry* route = config.route(headers, 0)->routeEntry();
+
+  EXPECT_CALL(stream_info, setDynamicMetadata(_, _))
+      .WillOnce(Invoke([&](const std::string& name,
+                           const ProtobufWkt::Struct& returned_dynamic_metadata) -> void {
+        EXPECT_EQ("mse.data", name);
+
+        std::unique_ptr<ProtobufWkt::Struct> dynamic_metadata =
+            std::make_unique<ProtobufWkt::Struct>();
+        auto* fields = dynamic_metadata->mutable_fields();
+        (*fields)["original_path"] = ValueUtil::stringValue("/new_endpoint/foo");
+        EXPECT_TRUE(TestUtility::protoEqual(returned_dynamic_metadata, *dynamic_metadata));
+
+        (*stream_info.metadata_.mutable_filter_metadata())[name].MergeFrom(
+            returned_dynamic_metadata);
+      }));
+
+  route->finalizeRequestHeaders(headers, stream_info, false);
+  auto transforms = route->requestHeaderTransforms(stream_info);
+  EXPECT_THAT(transforms.headers_to_append_or_add,
+              ElementsAre(Pair(Http::LowerCaseString("x-original-path"), "/new_endpoint/foo"),
+                          Pair(Http::LowerCaseString("x-client-ip"), "127.0.0.1")));
+  EXPECT_EQ("/api/new_endpoint/foo", headers.getPathValue());
+}
+
+TEST_F(CustomRequestHeadersTest, NoMseOriginalPathHeader) {
+  const std::string yaml = R"EOF(
+virtual_hosts:
+- name: www2
+  domains:
+  - lyft.com
+  - www.lyft.com
+  - w.lyft.com
+  - ww.lyft.com
+  - wwww.lyft.com
+  request_headers_to_add:
+  - header:
+      key: x-client-ip
+      value: "%DOWNSTREAM_REMOTE_ADDRESS_WITHOUT_PORT%"
+  routes:
+  - match:
+      prefix: "/new_endpoint"
+    route:
+      prefix_rewrite: "/api/new_endpoint"
+      cluster: www2
+  - match:
+      prefix: "/new_endpoint/test"
+    route:
+      prefix_rewrite: "/api/new_endpoint"
+      cluster: www2
+  - match:
+      prefix: "/new_endpoint/test1"
+    route:
+      prefix_rewrite: "/api/new_endpoint"
+      cluster: www2
+  )EOF";
+  NiceMock<Envoy::StreamInfo::MockStreamInfo> stream_info;
+  factory_context_.cluster_manager_.initializeClusters({"www2"}, {});
+  TestConfigImpl config(parseRouteConfigurationFromYaml(yaml), factory_context_, true);
+  Http::TestRequestHeaderMapImpl headers = genHeaders("www.lyft.com", "/new_endpoint/foo", "GET");
+  const RouteEntry* route = config.route(headers, 0)->routeEntry();
+
+  EXPECT_CALL(stream_info, setDynamicMetadata(_, _)).Times(0);
+
+  route->finalizeRequestHeaders(headers, stream_info, true);
+  EXPECT_EQ("/new_endpoint/foo", headers.get_("x-envoy-original-path"));
+  auto transforms = route->requestHeaderTransforms(stream_info);
+  EXPECT_THAT(transforms.headers_to_append_or_add,
+              ElementsAre(Pair(Http::LowerCaseString("x-client-ip"), "127.0.0.1")));
+  EXPECT_EQ("/api/new_endpoint/foo", headers.getPathValue());
+}
+
+TEST_F(CustomRequestHeadersTest, NoMseOriginalPathHeaderWithRouteConfiguration) {
+  const std::string yaml = R"EOF(
+virtual_hosts:
+- name: www2
+  domains:
+  - lyft.com
+  - www.lyft.com
+  - w.lyft.com
+  - ww.lyft.com
+  - wwww.lyft.com
+  routes:
+  - match:
+      prefix: "/new_endpoint"
+    route:
+      prefix_rewrite: "/api/new_endpoint"
+      cluster: www2
+  - match:
+      prefix: "/new_endpoint/test"
+    route:
+      prefix_rewrite: "/api/new_endpoint"
+      cluster: www2
+  - match:
+      prefix: "/new_endpoint/test1"
+    route:
+      prefix_rewrite: "/api/new_endpoint"
+      cluster: www2
+request_headers_to_add:
+- header:
+    key: x-original-path
+    value: "%REQ(X-ENVOY-ORIGINAL-PATH)%"
+  )EOF";
+  NiceMock<Envoy::StreamInfo::MockStreamInfo> stream_info;
+  factory_context_.cluster_manager_.initializeClusters({"www2"}, {});
+  TestConfigImpl config(parseRouteConfigurationFromYaml(yaml), factory_context_, true);
+  Http::TestRequestHeaderMapImpl headers =
+      genHeaders("www.lyft.com", "/new_endpoint/test1/a", "GET");
+  const RouteEntry* route = config.route(headers, 0)->routeEntry();
+
+  EXPECT_CALL(stream_info, setDynamicMetadata(_, _)).Times(0);
+
+  route->finalizeRequestHeaders(headers, stream_info, true);
+
+  EXPECT_EQ("/new_endpoint/test1/a", headers.get_("x-envoy-original-path"));
+
+  EXPECT_EQ("/api/new_endpoint/test1/a", headers.getPathValue());
+}
+#endif
 
 TEST_F(CustomRequestHeadersTest, CustomHeaderWrongFormat) {
   const std::string yaml = R"EOF(

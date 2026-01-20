@@ -1,9 +1,13 @@
 load("@com_google_googleapis//:repository_rules.bzl", "switched_rules_by_language")
+load("@bazel_tools//tools/build_defs/repo:http.bzl", "http_archive")
+load("@bazel_tools//tools/build_defs/repo:git.bzl", "git_repository", "new_git_repository")
 load("@envoy_api//bazel:envoy_http_archive.bzl", "envoy_http_archive")
 load("@envoy_api//bazel:external_deps.bzl", "load_repository_locations")
 load(":repository_locations.bzl", "PROTOC_VERSIONS", "REPOSITORY_LOCATIONS_SPEC")
 
 PPC_SKIP_TARGETS = ["envoy.string_matcher.lua", "envoy.filters.http.lua", "envoy.router.cluster_specifier_plugin.lua"]
+
+DARWIN_SKIP_TARGETS = []
 
 WINDOWS_SKIP_TARGETS = [
     "envoy.extensions.http.cache.file_system_http_cache",
@@ -602,6 +606,20 @@ def _com_github_skyapm_cpp2sky():
         patches = ["@envoy//bazel:skywalking_data_collect_protocol.patch"],
         patch_args = ["-p1"],
     )
+    native.bind(
+        name = "cpp2sky",
+        actual = "@com_github_skyapm_cpp2sky//source:cpp2sky_data_lib",
+    )
+
+def _com_github_tencent_rapidjson():
+    external_http_archive(
+        name = "com_github_tencent_rapidjson",
+        build_file = "@envoy//bazel/external:rapidjson.BUILD",
+    )
+    native.bind(
+        name = "rapidjson",
+        actual = "@com_github_tencent_rapidjson//:rapidjson",
+    )
 
 def _com_github_nlohmann_json():
     external_http_archive(
@@ -610,6 +628,18 @@ def _com_github_nlohmann_json():
 
 def _com_github_alibaba_hessian2_codec():
     external_http_archive("com_github_alibaba_hessian2_codec")
+    native.bind(
+        name = "hessian2_codec_object_codec_lib",
+        actual = "@com_github_alibaba_hessian2_codec//hessian2/basic_codec:object_codec_lib",
+    )
+    native.bind(
+        name = "hessian2_codec_codec_impl",
+        actual = "@com_github_alibaba_hessian2_codec//hessian2:codec_impl_lib",
+    )
+    native.bind(
+        name = "hessian2_codec_object_impl",
+        actual = "@com_github_alibaba_hessian2_codec//hessian2:object_lib",
+    )
 
 def _com_github_ncopa_suexec():
     external_http_archive(

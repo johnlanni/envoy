@@ -1,3 +1,8 @@
+envoy.filters.http.http_dubbo_transcoder:
+  categories:
+  - envoy.filters.http
+  security_posture: requires_trusted_downstream_and_upstream
+  status: stable
 envoy.filters.http.checksum:
   categories:
   - envoy.filters.http
@@ -7,6 +12,11 @@ envoy.filters.http.dynamo:
   categories:
   - envoy.filters.http
   security_posture: requires_trusted_downstream_and_upstream
+  status: stable
+envoy.upstreams.http.dubbo_tcp:
+  categories:
+  - envoy.upstreams
+  security_posture: robust_to_untrusted_downstream
   status: stable
 envoy.filters.http.golang:
   categories:
@@ -78,6 +88,9 @@ envoy.tls.key_providers.cryptomb:
   - envoy.tls.key_providers
   security_posture: robust_to_untrusted_downstream
   status: alpha
+envoy.router.cluster_specifier_plugin.cluster_fallback:
+  categories:
+  - envoy.router
 envoy.tls.key_providers.qat:
   categories:
   - envoy.tls.key_providers

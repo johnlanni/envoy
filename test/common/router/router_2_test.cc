@@ -66,6 +66,9 @@ TEST_F(RouterTestSuppressEnvoyHeaders, MaintenanceMode) {
   router_->decodeHeaders(headers, true);
 }
 
+// if HIGRESS defined,  x-envoy-upstream-service-time will be added anyway.
+// see https://code.alibaba-inc.com/Ingress/envoy/codereview/13276137
+#ifndef HIGRESS
 // Validate that x-envoy-upstream-service-time is not added when Envoy header
 // suppression is enabled.
 // TODO(htuch): Probably should be TEST_P with
@@ -96,6 +99,7 @@ TEST_F(RouterTestSuppressEnvoyHeaders, EnvoyUpstreamServiceTime) {
   response_decoder->decodeHeaders(std::move(response_headers), true);
   EXPECT_TRUE(verifyHostUpstreamStats(1, 0));
 }
+#endif
 
 // Validate that we don't set x-envoy-attempt-count in responses before an upstream attempt is made.
 TEST_F(RouterTestSuppressEnvoyHeaders, EnvoyAttemptCountInResponseNotPresent) {

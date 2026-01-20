@@ -691,8 +691,13 @@ void HttpIntegrationTest::testRouterUpstreamProtocolError(const std::string& exp
   FakeRawConnectionPtr fake_upstream_connection;
   ASSERT_TRUE(fake_upstreams_[0]->waitForRawConnection(fake_upstream_connection));
   std::string data;
+#if defined(HIGRESS)
+  // We added some custom TRI headers, so the request data changed.
+  ASSERT_TRUE(fake_upstream_connection->waitForData(247, &data));
+#else
   ASSERT_TRUE(fake_upstream_connection->waitForData(
       FakeRawConnection::waitForInexactMatch("\r\n\r\n"), &data));
+#endif
   ASSERT_TRUE(fake_upstream_connection->write("bad protocol data!"));
   ASSERT_TRUE(fake_upstream_connection->waitForDisconnect());
   ASSERT_TRUE(codec_client_->waitForDisconnect());
@@ -1580,10 +1585,15 @@ void HttpIntegrationTest::testManyRequestHeaders(std::chrono::milliseconds time)
        {Http::Headers::get().Path, "/test/long/url"},
        {Http::Headers::get().Scheme, "http"},
        {Http::Headers::get().Host, "sni.lyft.com"}});
-
+#if defined(HIGRESS)
+  for (int i = 0; i < 9000; i++) {
+    big_headers->addCopy(Http::LowerCaseString(std::to_string(i)), std::string(0, 'a'));
+  }
+#else
   for (int i = 0; i < 10000; i++) {
     big_headers->addCopy(Http::LowerCaseString(std::to_string(i)), std::string(0, 'a'));
   }
+#endif
   initialize();
 
   codec_client_ = makeHttpConnection(lookupPort("http"));
@@ -1593,7 +1603,7 @@ void HttpIntegrationTest::testManyRequestHeaders(std::chrono::milliseconds time)
 
   EXPECT_TRUE(response->complete());
   EXPECT_EQ("200", response->headers().getStatusValue());
-}
+} // namespace Envoy
 
 void HttpIntegrationTest::testDownstreamResetBeforeResponseComplete() {
   initialize();

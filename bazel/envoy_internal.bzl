@@ -140,6 +140,7 @@ def envoy_copts(repository, test = False):
            _envoy_select_execution_context() + \
            _envoy_select_perfetto(["-DENVOY_PERFETTO"]) + \
            envoy_select_google_grpc(["-DENVOY_GOOGLE_GRPC"], repository) + \
+           envoy_select_higress(["-DHIGRESS"]) + \
            envoy_select_signal_trace(["-DENVOY_HANDLE_SIGNALS"], repository) + \
            _envoy_select_path_normalization_by_default(["-DENVOY_NORMALIZE_PATH_BY_DEFAULT"], repository)
 
@@ -202,6 +203,12 @@ def _envoy_select_execution_context():
     return select({
         "@envoy//bazel:enable_execution_context": ["-DENVOY_ENABLE_EXECUTION_CONTEXT"],
         "//conditions:default": [],
+    })
+
+def envoy_select_higress(xs):
+    return select({
+        "@envoy//bazel:higress": [],
+        "//conditions:default": xs,
     })
 
 def _envoy_select_perfetto(xs):

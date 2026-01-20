@@ -444,6 +444,14 @@ protected:
   void compareHeaders(Headers&& headers, const ExpectedHeaders& expected_headers) {
     headers.remove(Envoy::Http::LowerCaseString{"content-length"});
     headers.remove(Envoy::Http::LowerCaseString{"date"});
+#if defined(HIGRESS)
+    headers.remove(Envoy::Http::LowerCaseString{"req-start-time"});
+    headers.remove(Envoy::Http::LowerCaseString{"req-cost-time"});
+    headers.remove(Envoy::Http::LowerCaseString{"x-envoy-original-host"});
+    headers.remove(Envoy::Http::LowerCaseString{"req-arrive-time"});
+    headers.remove(Envoy::Http::LowerCaseString{"resp-start-time"});
+    headers.remove(Envoy::Http::LowerCaseString{"x-envoy-upstream-service-time"});
+#endif
     if (!routerSuppressEnvoyHeaders()) {
       headers.remove(Envoy::Http::LowerCaseString{"x-envoy-expected-rq-timeout-ms"});
       headers.remove(Envoy::Http::LowerCaseString{"x-envoy-upstream-service-time"});

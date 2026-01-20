@@ -728,6 +728,13 @@ config_setting(
     define_values = {"FUZZING_ENGINE": "oss-fuzz"},
 )
 
+# By default we enable Higress build. If want to build community
+# version then build Envoy with flag of '--define higress=false'.
+config_setting(
+    name = "higress",
+    values = {"define": "higress=false"},
+)
+
 alias(
     name = "fuzzing_engine",
     actual = select({

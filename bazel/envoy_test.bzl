@@ -15,6 +15,7 @@ load(
     "envoy_select_force_libcpp",
     "envoy_stdlib_deps",
     "tcmalloc_external_dep",
+    "envoy_select_higress",
 )
 load(":envoy_library.bzl", "tcmalloc_external_deps")
 load(":envoy_pch.bzl", "envoy_pch_copts", "envoy_pch_deps")
@@ -73,7 +74,7 @@ def _envoy_test_linkopts():
         # TODO(mattklein123): It's not great that we universally link against the following libs.
         # In particular, -latomic and -lrt are not needed on all platforms. Make this more granular.
         "//conditions:default": ["-pthread", "-lrt", "-ldl"],
-    }) + envoy_select_force_libcpp([], ["-lstdc++fs", "-latomic"]) + envoy_dbg_linkopts() + envoy_select_exported_symbols(["-Wl,-E"])
+    }) + envoy_select_force_libcpp([], ["-lstdc++fs", "-latomic"]) + envoy_select_higress(["-lcrypt"]) + envoy_dbg_linkopts() + envoy_select_exported_symbols(["-Wl,-E"])
 
 # Envoy C++ fuzz test targets. These are not included in coverage runs.
 def envoy_cc_fuzz_test(
@@ -160,6 +161,7 @@ def envoy_cc_test(
         repository = "",
         external_deps = [],
         deps = [],
+        higress_deps = [],
         tags = [],
         args = [],
         copts = [],
@@ -178,6 +180,11 @@ def envoy_cc_test(
         repository + "//bazel:engflow_rbe_x86_64": {"Pool": rbe_pool} if rbe_pool else {},
         "//conditions:default": {},
     })
+    deps = deps + select({
+        "@envoy//bazel:higress": [],
+        "//conditions:default": higress_deps,
+    })
+
     native.cc_test(
         name = name,
         srcs = srcs,
@@ -215,6 +222,7 @@ def envoy_cc_test_library(
         exec_properties = {},
         external_deps = [],
         deps = [],
+        higress_deps = [],
         repository = "",
         tags = [],
         include_prefix = None,
@@ -225,7 +233,14 @@ def envoy_cc_test_library(
         repository + "//bazel:engflow_rbe_x86_64": {"Pool": rbe_pool} if rbe_pool else {},
         "//conditions:default": {},
     })
+
+    deps = deps + select({
+        "@envoy//bazel:higress": [],
+        "//conditions:default": higress_deps,
+    })
+
     disable_pch = kargs.pop("disable_pch", True)
+
     _envoy_cc_test_infrastructure_library(
         name,
         srcs,

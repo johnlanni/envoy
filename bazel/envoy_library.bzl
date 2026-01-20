@@ -96,6 +96,7 @@ def envoy_cc_library(
         tags = [],
         deps = [],
         strip_include_prefix = None,
+        higress_deps = [],
         include_prefix = None,
         textual_hdrs = None,
         alwayslink = None,
@@ -107,6 +108,11 @@ def envoy_cc_library(
     exec_properties = exec_properties | select({
         repository + "//bazel:engflow_rbe_x86_64": {"Pool": rbe_pool} if rbe_pool else {},
         "//conditions:default": {},
+    })
+
+    deps = deps + select({
+        "@envoy//bazel:higress": [],
+        "//conditions:default": higress_deps,
     })
 
     # If alwayslink is not specified, allow turning it off via --define=library_autolink=disabled
