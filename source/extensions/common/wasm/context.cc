@@ -1025,10 +1025,13 @@ WasmResult Context::setBuffer(WasmBufferType type, size_t start, size_t length,
       if (start == 0 && length >= decoder_callbacks_->decodingBuffer()->length()) {
         backup_for_replace = true;
       }
-      decoder_callbacks_->modifyDecodingBuffer(
-          [&buffer_instance](::Envoy::Buffer::Instance& buffer) { buffer_instance = &buffer; },
-          backup_for_replace);
       if (buffering_request_body_) {
+        decoder_callbacks_->modifyDecodingBuffer(
+            [&buffer_instance](::Envoy::Buffer::Instance& buffer) { buffer_instance = &buffer; },
+            backup_for_replace);
+        if (buffer_instance == nullptr) {
+          return WasmResult::NotFound;
+        }
         return buffer_.set(buffer_instance)->copyFrom(start, length, data);
       }
     }
@@ -1118,10 +1121,11 @@ WasmResult Context::httpCall(std::string_view cluster, const Pairs& request_head
       options.setParentSpan(span);
     }
   }
-  
+
   // Set child span name with plugin and cluster information
   if (plugin()) {
-    std::string child_span_name = absl::StrCat("wasm ", plugin()->name_, " httpcall to ", cluster_string);
+    std::string child_span_name =
+        absl::StrCat("wasm ", plugin()->name_, " httpcall to ", cluster_string);
     options.setChildSpanName(child_span_name);
   }
 
@@ -1183,13 +1187,15 @@ WasmResult Context::redisCall(std::string_view cluster, std::string_view query,
       options.setParentSpan(current_context->encoder_callbacks_->activeSpan());
     }
   }
-  
+
   if (plugin()) {
-    std::string child_span_name = absl::StrCat("wasm ", plugin()->name_, " rediscall to ", cluster_string);
+    std::string child_span_name =
+        absl::StrCat("wasm ", plugin()->name_, " rediscall to ", cluster_string);
     options.setChildSpanName(child_span_name);
   }
 
-  auto redis_request = thread_local_cluster->redisAsyncClient().send(std::string(query), handler, options);
+  auto redis_request =
+      thread_local_cluster->redisAsyncClient().send(std::string(query), handler, options);
   if (!redis_request) {
     redis_request_.erase(token);
     return WasmResult::InternalFailure;
