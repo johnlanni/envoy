@@ -447,7 +447,17 @@ void ActiveStreamDecoderFilter::modifyDecodingBuffer(
 void ActiveStreamDecoderFilter::modifyDecodingBuffer(
     std::function<void(Buffer::Instance&)> callback, bool backup_for_replace) {
   // Backup the original buffer only during the first replacement.
-  if (backup_for_replace && !parent_.original_buffered_request_data_) {
+  bool need_fallback = false;
+  const auto& metadata = streamInfo().dynamicMetadata();
+  auto it = metadata.filter_metadata().find("envoy.filters.http.custom_response");
+    if (it != metadata.filter_metadata().end()) {
+        const ProtobufWkt::Struct& fields = it->second;
+        auto field_it = fields.fields().find("need_fallback");
+        if (field_it != fields.fields().end() && field_it->second.has_bool_value()) {
+            need_fallback = field_it->second.bool_value();
+        }
+    }
+  if (backup_for_replace && !parent_.original_buffered_request_data_ && need_fallback) {
     parent_.original_buffered_request_data_ = std::make_unique<Buffer::OwnedImpl>();
     parent_.original_buffered_request_data_->move(*parent_.buffered_request_data_.get());
   }

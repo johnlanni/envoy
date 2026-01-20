@@ -310,6 +310,27 @@ class InjectEncodedDataToFilterChainOnHeaderFactory: public Logger::Loggable<Log
   RegisterForeignFunction
       registerInjectEncodedDataToFilterChainOnHeaderFactory("inject_encoded_data_to_filter_chain_on_header",
                                               createFromClass<InjectEncodedDataToFilterChainOnHeaderFactory>());
+
+class GetLogLevelFactory: public Logger::Loggable<Logger::Id::wasm> {
+public:
+  WasmForeignFunction create(std::shared_ptr<GetLogLevelFactory> self) const {
+    WasmForeignFunction f = [self](WasmBase&, std::string_view,
+                                    const std::function<void*(size_t size)>& alloc_result) -> WasmResult {
+      auto context = static_cast<Context*>(proxy_wasm::current_context_);
+      uint32_t level = context->getLogLevel();
+      void* result_buf = alloc_result(sizeof(uint32_t));
+      if (result_buf == nullptr) {
+        return WasmResult::InternalFailure;
+      }
+      memcpy(result_buf, &level, sizeof(uint32_t));
+      return WasmResult::Ok;
+    };
+    return f;
+  }
+};
+RegisterForeignFunction
+    registerGetLogLevelFactory("get_log_level",
+                                            createFromClass<GetLogLevelFactory>());
 #endif
 
 } // namespace Wasm

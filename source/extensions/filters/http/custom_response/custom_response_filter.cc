@@ -15,21 +15,28 @@ namespace HttpFilters {
 namespace CustomResponse {
 
 Http::FilterHeadersStatus CustomResponseFilter::decodeHeaders(Http::RequestHeaderMap& header_map,
-                                                              bool) {
+                                                              bool end_stream) {
 #if defined(HIGRESS)
   downstream_headers_ = &header_map;
-  const FilterConfig* config = nullptr;
-  if (decoder_callbacks_ && decoder_callbacks_->route()) {
-    config = Http::Utility::resolveMostSpecificPerFilterConfig<FilterConfig>(decoder_callbacks_);
-  }
-  if (config == nullptr) {
-    config = config_.get();
-  }
-  if (config->withRequestBody() && !Http::Utility::isWebSocketUpgradeRequest(header_map) &&
-      !Http::Utility::isH2UpgradeRequest(header_map) &&
-      !Grpc::Common::isGrpcRequestHeaders(header_map)) {
-    decoder_callbacks_->setNeedBuffering(true);
-    decoder_callbacks_->setDecoderBufferLimit(config->maxRequestBytes());
+  if (end_stream) {
+    const FilterConfig* config = nullptr;
+    if (decoder_callbacks_ && decoder_callbacks_->route()) {
+      config = Http::Utility::resolveMostSpecificPerFilterConfig<FilterConfig>(decoder_callbacks_);
+    }
+    if (config == nullptr) {
+      config = config_.get();
+    }
+    if (config->withRequestBody() && !Http::Utility::isWebSocketUpgradeRequest(header_map) &&
+        !Http::Utility::isH2UpgradeRequest(header_map) &&
+        !Grpc::Common::isGrpcRequestHeaders(header_map)) {
+      ProtobufWkt::Struct metadata;
+      auto& fields = *metadata.mutable_fields();
+      fields["need_fallback"].set_bool_value(true);
+      decoder_callbacks_->streamInfo().setDynamicMetadata("envoy.filters.http.custom_response",
+                                                          metadata);
+      decoder_callbacks_->setNeedBuffering(true);
+      decoder_callbacks_->setDecoderBufferLimit(config->maxRequestBytes());
+    }
   }
 #else
   // Check filter state for the existence of a custom response policy. The
@@ -48,6 +55,34 @@ Http::FilterHeadersStatus CustomResponseFilter::decodeHeaders(Http::RequestHeade
 #endif
   return Http::FilterHeadersStatus::Continue;
 }
+
+#if defined(ALIMESH)
+Http::FilterDataStatus CustomResponseFilter::decodeData(Buffer::Instance&, bool) {
+  if (!has_checked_) {
+    const FilterConfig* config = nullptr;
+    if (decoder_callbacks_ && decoder_callbacks_->route()) {
+      config = Http::Utility::resolveMostSpecificPerFilterConfig<FilterConfig>(decoder_callbacks_);
+    }
+    if (config == nullptr) {
+      config = config_.get();
+    }
+    if (config->withRequestBody() &&
+        !Http::Utility::isWebSocketUpgradeRequest(*downstream_headers_) &&
+        !Http::Utility::isH2UpgradeRequest(*downstream_headers_) &&
+        !Grpc::Common::isGrpcRequestHeaders(*downstream_headers_)) {
+      ProtobufWkt::Struct metadata;
+      auto& fields = *metadata.mutable_fields();
+      fields["need_fallback"].set_bool_value(true);
+      decoder_callbacks_->streamInfo().setDynamicMetadata("envoy.filters.http.custom_response",
+                                                          metadata);
+      decoder_callbacks_->setNeedBuffering(true);
+      decoder_callbacks_->setDecoderBufferLimit(config->maxRequestBytes());
+    }
+    has_checked_ = true;
+  }
+  return Http::FilterDataStatus::Continue;
+}
+#endif
 
 Http::FilterHeadersStatus CustomResponseFilter::encodeHeaders(Http::ResponseHeaderMap& headers,
                                                               bool end_stream) {
