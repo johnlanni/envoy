@@ -760,6 +760,12 @@ public:
               (RouteEntryAndRouteConstSharedPtr parent, const Http::RequestHeaderMap& headers,
                const StreamInfo::StreamInfo& stream_info, uint64_t random),
               (const));
+
+#if defined(HIGRESS)
+  MOCK_METHOD(RouteConstSharedPtr, route,
+              (RouteConstSharedPtr route, const Http::RequestHeaderMap& headers),
+              (const));
+#endif
 };
 
 class MockClusterSpecifierPluginFactoryConfig : public ClusterSpecifierPluginFactoryConfig {

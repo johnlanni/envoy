@@ -25,15 +25,26 @@ public:
           config,
       Server::Configuration::CommonFactoryContext& context);
 
+  // ClusterSpecifierPlugin interface - required pure virtual method
+  // This is used when ClusterFallbackPlugin is the primary cluster specifier (non-weighted cluster routes)
+  Envoy::Router::RouteConstSharedPtr route(Envoy::Router::RouteEntryAndRouteConstSharedPtr parent,
+                                           const Http::RequestHeaderMap& headers,
+                                           const StreamInfo::StreamInfo& /*stream_info*/,
+                                           uint64_t /*random*/) const override;
+
+  // Fallback route method for weighted cluster scenarios
+  // This is used when ClusterFallbackPlugin is a fallback plugin on WeightedClusterSpecifierPlugin
   Envoy::Router::RouteConstSharedPtr route(Envoy::Router::RouteConstSharedPtr route,
-                                           const Http::RequestHeaderMap&) const;
+                                           const Http::RequestHeaderMap& headers) const override;
 
 private:
   bool hasHealthHost(absl::string_view cluster_name) const;
   Envoy::Router::RouteConstSharedPtr
-  calculateWeightedClusterFallback(const Envoy::Router::RouteEntry& route_entry) const;
+  calculateWeightedClusterFallback(Envoy::Router::RouteConstSharedPtr route,
+                                   const std::string& cluster_name) const;
   Envoy::Router::RouteConstSharedPtr
-  calculateNormalClusterFallback(const Envoy::Router::RouteEntry& route_entry) const;
+  calculateNormalClusterFallback(Envoy::Router::RouteConstSharedPtr route,
+                                 const std::string& original_cluster) const;
 
   Upstream::ClusterManager& cluster_manager_;
   std::unordered_map<std::string/*routing cluster*/, std::vector<std::string>/*fallback clusters*/> clusters_config_;

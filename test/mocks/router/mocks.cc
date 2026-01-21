@@ -223,6 +223,9 @@ MockGenericConnectionPoolCallbacks::MockGenericConnectionPoolCallbacks() {
 
 MockClusterSpecifierPlugin::MockClusterSpecifierPlugin() {
   ON_CALL(*this, route(_, _, _, _)).WillByDefault(Return(nullptr));
+#if defined(HIGRESS)
+  ON_CALL(*this, route(_, _)).WillByDefault(Return(nullptr));
+#endif
 }
 
 MockClusterSpecifierPluginFactoryConfig::MockClusterSpecifierPluginFactoryConfig() {

@@ -87,13 +87,13 @@ virtual_hosts:
   envoy::config::route::v3::RouteConfiguration route_config;
   TestUtility::loadFromYaml(yaml, route_config);
 
-  const Envoy::Router::OptionalHttpFilters& optional_http_filters =
-      Envoy::Router::OptionalHttpFilters();
-  Envoy::Router::ConfigImpl config(route_config, optional_http_filters, factory_context,
-                                   ProtobufMessage::getNullValidationVisitor(), false);
+  auto config_or_error = Envoy::Router::ConfigImpl::create(
+      route_config, factory_context, ProtobufMessage::getNullValidationVisitor(), false);
+  ASSERT_TRUE(config_or_error.ok());
+  auto config = config_or_error.value();
 
-  auto route = config.route(genHeaders("some_cluster", "/foo", "GET"), stream_info, 0);
-  EXPECT_NE(nullptr, route);
+  auto route = config->route(genHeaders("some_cluster", "/foo", "GET"), stream_info, 0);
+  EXPECT_NE(nullptr, route.route);
   EXPECT_EQ("test", route->routeEntry()->clusterName());
 }
 
@@ -143,13 +143,13 @@ virtual_hosts:
   envoy::config::route::v3::RouteConfiguration route_config;
   TestUtility::loadFromYaml(yaml, route_config);
 
-  const Envoy::Router::OptionalHttpFilters& optional_http_filters =
-      Envoy::Router::OptionalHttpFilters();
-  Envoy::Router::ConfigImpl config(route_config, optional_http_filters, factory_context,
-                                   ProtobufMessage::getNullValidationVisitor(), false);
+  auto config_or_error = Envoy::Router::ConfigImpl::create(
+      route_config, factory_context, ProtobufMessage::getNullValidationVisitor(), false);
+  ASSERT_TRUE(config_or_error.ok());
+  auto config = config_or_error.value();
 
-  auto route = config.route(genHeaders("some_cluster", "/foo", "GET"), stream_info, 0);
-  EXPECT_NE(nullptr, route);
+  auto route = config->route(genHeaders("some_cluster", "/foo", "GET"), stream_info, 0);
+  EXPECT_NE(nullptr, route.route);
   EXPECT_EQ("fallback1", route->routeEntry()->clusterName());
 }
 
@@ -209,14 +209,14 @@ virtual_hosts:
   envoy::config::route::v3::RouteConfiguration route_config;
   TestUtility::loadFromYaml(yaml, route_config);
 
-  const Envoy::Router::OptionalHttpFilters& optional_http_filters =
-      Envoy::Router::OptionalHttpFilters();
-  Envoy::Router::ConfigImpl config(route_config, optional_http_filters, factory_context,
-                                   ProtobufMessage::getNullValidationVisitor(), false);
+  auto config_or_error = Envoy::Router::ConfigImpl::create(
+      route_config, factory_context, ProtobufMessage::getNullValidationVisitor(), false);
+  ASSERT_TRUE(config_or_error.ok());
+  auto config = config_or_error.value();
 
   NiceMock<Envoy::StreamInfo::MockStreamInfo> stream_info;
-  auto route = config.route(genHeaders("some_cluster", "/foo", "GET"), stream_info, 0);
-  EXPECT_NE(nullptr, route);
+  auto route = config->route(genHeaders("some_cluster", "/foo", "GET"), stream_info, 0);
+  EXPECT_NE(nullptr, route.route);
   EXPECT_EQ("fallback2", route->routeEntry()->clusterName());
 }
 
@@ -266,14 +266,14 @@ virtual_hosts:
   envoy::config::route::v3::RouteConfiguration route_config;
   TestUtility::loadFromYaml(yaml, route_config);
 
-  const Envoy::Router::OptionalHttpFilters& optional_http_filters =
-      Envoy::Router::OptionalHttpFilters();
-  Envoy::Router::ConfigImpl config(route_config, optional_http_filters, factory_context,
-                                   ProtobufMessage::getNullValidationVisitor(), false);
+  auto config_or_error = Envoy::Router::ConfigImpl::create(
+      route_config, factory_context, ProtobufMessage::getNullValidationVisitor(), false);
+  ASSERT_TRUE(config_or_error.ok());
+  auto config = config_or_error.value();
 
   NiceMock<Envoy::StreamInfo::MockStreamInfo> stream_info;
-  auto route = config.route(genHeaders("some_cluster", "/bar", "GET"), stream_info, 0);
-  EXPECT_NE(nullptr, route);
+  auto route = config->route(genHeaders("some_cluster", "/bar", "GET"), stream_info, 0);
+  EXPECT_NE(nullptr, route.route);
   EXPECT_EQ("test", route->routeEntry()->clusterName());
 }
 
@@ -339,18 +339,18 @@ virtual_hosts:
   envoy::config::route::v3::RouteConfiguration route_config;
   TestUtility::loadFromYaml(yaml, route_config);
 
-  const Envoy::Router::OptionalHttpFilters& optional_http_filters =
-      Envoy::Router::OptionalHttpFilters();
-  Envoy::Router::ConfigImpl config(route_config, optional_http_filters, factory_context,
-                                   ProtobufMessage::getNullValidationVisitor(), false);
+  auto config_or_error = Envoy::Router::ConfigImpl::create(
+      route_config, factory_context, ProtobufMessage::getNullValidationVisitor(), false);
+  ASSERT_TRUE(config_or_error.ok());
+  auto config = config_or_error.value();
 
   NiceMock<Envoy::StreamInfo::MockStreamInfo> stream_info;
-  auto route = config.route(genHeaders("some_cluster", "/bar", "GET"), stream_info, 0);
-  EXPECT_NE(nullptr, route);
+  auto route = config->route(genHeaders("some_cluster", "/bar", "GET"), stream_info, 0);
+  EXPECT_NE(nullptr, route.route);
   EXPECT_EQ("fallback2", route->routeEntry()->clusterName());
 
-  route = config.route(genHeaders("some_cluster", "/foo", "GET"), stream_info, 0);
-  EXPECT_NE(nullptr, route);
+  route = config->route(genHeaders("some_cluster", "/foo", "GET"), stream_info, 0);
+  EXPECT_NE(nullptr, route.route);
   EXPECT_EQ("fallback2", route->routeEntry()->clusterName());
 }
 
@@ -406,13 +406,13 @@ virtual_hosts:
   envoy::config::route::v3::RouteConfiguration route_config;
   TestUtility::loadFromYaml(yaml, route_config);
 
-  const Envoy::Router::OptionalHttpFilters& optional_http_filters =
-      Envoy::Router::OptionalHttpFilters();
-  Envoy::Router::ConfigImpl config(route_config, optional_http_filters, factory_context,
-                                   ProtobufMessage::getNullValidationVisitor(), false);
+  auto config_or_error = Envoy::Router::ConfigImpl::create(
+      route_config, factory_context, ProtobufMessage::getNullValidationVisitor(), false);
+  ASSERT_TRUE(config_or_error.ok());
+  auto config = config_or_error.value();
 
-  auto route = config.route(genHeaders("some_cluster", "/foo", "GET"), stream_info, 0);
-  EXPECT_NE(nullptr, route);
+  auto route = config->route(genHeaders("some_cluster", "/foo", "GET"), stream_info, 0);
+  EXPECT_NE(nullptr, route.route);
   EXPECT_EQ("test", route->routeEntry()->clusterName());
 }
 
@@ -472,13 +472,13 @@ virtual_hosts:
   envoy::config::route::v3::RouteConfiguration route_config;
   TestUtility::loadFromYaml(yaml, route_config);
 
-  const Envoy::Router::OptionalHttpFilters& optional_http_filters =
-      Envoy::Router::OptionalHttpFilters();
-  Envoy::Router::ConfigImpl config(route_config, optional_http_filters, factory_context,
-                                   ProtobufMessage::getNullValidationVisitor(), false);
+  auto config_or_error = Envoy::Router::ConfigImpl::create(
+      route_config, factory_context, ProtobufMessage::getNullValidationVisitor(), false);
+  ASSERT_TRUE(config_or_error.ok());
+  auto config = config_or_error.value();
 
-  auto route = config.route(genHeaders("some_cluster", "/foo", "GET"), stream_info, 0);
-  EXPECT_NE(nullptr, route);
+  auto route = config->route(genHeaders("some_cluster", "/foo", "GET"), stream_info, 0);
+  EXPECT_NE(nullptr, route.route);
   EXPECT_EQ("fallback1", route->routeEntry()->clusterName());
 }
 
@@ -538,13 +538,13 @@ virtual_hosts:
   envoy::config::route::v3::RouteConfiguration route_config;
   TestUtility::loadFromYaml(yaml, route_config);
 
-  const Envoy::Router::OptionalHttpFilters& optional_http_filters =
-      Envoy::Router::OptionalHttpFilters();
-  Envoy::Router::ConfigImpl config(route_config, optional_http_filters, factory_context,
-                                   ProtobufMessage::getNullValidationVisitor(), false);
+  auto config_or_error = Envoy::Router::ConfigImpl::create(
+      route_config, factory_context, ProtobufMessage::getNullValidationVisitor(), false);
+  ASSERT_TRUE(config_or_error.ok());
+  auto config = config_or_error.value();
 
-  auto route = config.route(genHeaders("some_cluster", "/foo", "GET"), stream_info, 0);
-  EXPECT_NE(nullptr, route);
+  auto route = config->route(genHeaders("some_cluster", "/foo", "GET"), stream_info, 0);
+  EXPECT_NE(nullptr, route.route);
   EXPECT_EQ("fallback1", route->routeEntry()->clusterName());
 }
 
@@ -603,13 +603,13 @@ virtual_hosts:
   envoy::config::route::v3::RouteConfiguration route_config;
   TestUtility::loadFromYaml(yaml, route_config);
 
-  const Envoy::Router::OptionalHttpFilters& optional_http_filters =
-      Envoy::Router::OptionalHttpFilters();
-  Envoy::Router::ConfigImpl config(route_config, optional_http_filters, factory_context,
-                                   ProtobufMessage::getNullValidationVisitor(), false);
+  auto config_or_error = Envoy::Router::ConfigImpl::create(
+      route_config, factory_context, ProtobufMessage::getNullValidationVisitor(), false);
+  ASSERT_TRUE(config_or_error.ok());
+  auto config = config_or_error.value();
 
-  auto route = config.route(genHeaders("some_cluster", "/foo", "GET"), stream_info, 0);
-  EXPECT_NE(nullptr, route);
+  auto route = config->route(genHeaders("some_cluster", "/foo", "GET"), stream_info, 0);
+  EXPECT_NE(nullptr, route.route);
   EXPECT_EQ("test", route->routeEntry()->clusterName());
 }
 
@@ -669,16 +669,69 @@ virtual_hosts:
   envoy::config::route::v3::RouteConfiguration route_config;
   TestUtility::loadFromYaml(yaml, route_config);
 
-  const Envoy::Router::OptionalHttpFilters& optional_http_filters =
-      Envoy::Router::OptionalHttpFilters();
-  Envoy::Router::ConfigImpl config(route_config, optional_http_filters, factory_context,
-                                   ProtobufMessage::getNullValidationVisitor(), false);
+  auto config_or_error = Envoy::Router::ConfigImpl::create(
+      route_config, factory_context, ProtobufMessage::getNullValidationVisitor(), false);
+  ASSERT_TRUE(config_or_error.ok());
+  auto config = config_or_error.value();
 
   Http::TestRequestHeaderMapImpl header = genHeaders("some_cluster", "/foo", "GET");
-  header.setByKey("cluster", "test");
-  auto route = config.route(header, stream_info, 0);
-  EXPECT_NE(nullptr, route);
+  header.setCopy(Http::LowerCaseString("cluster"), "test");
+  auto route = config->route(header, stream_info, 0);
+  EXPECT_NE(nullptr, route.route);
   EXPECT_EQ("fallback1", route->routeEntry()->clusterName());
+}
+
+// Test case for weighted cluster with partial fallback config (only some clusters have fallback)
+// This tests the scenario where a cluster without fallback config should be returned unchanged
+TEST(ClusterFallbackPluginTest, WeightedClusterPartialFallbackConfig) {
+  const std::string yaml = R"EOF(
+cluster_specifier_plugins:
+- extension:
+    name: envoy.router.cluster_specifier_plugin.cluster_fallback
+    typed_config:
+      "@type": type.googleapis.com/envoy.extensions.custom_cluster_plugins.cluster_fallback.v3.ClusterFallbackConfig
+      weighted_cluster_config:
+        config:
+        - routing_cluster: clusterA
+          fallback_clusters:
+          - fallbackA
+virtual_hosts:
+- name: local_service
+  domains:
+  - "*"
+  routes:
+  - match:
+      prefix: "/foo"
+    route:
+      weighted_clusters:
+        clusters:
+        - name: clusterA
+          weight: 0
+        - name: clusterB
+          weight: 100
+        cluster_specifier_plugin: envoy.router.cluster_specifier_plugin.cluster_fallback
+  )EOF";
+
+  NiceMock<Server::Configuration::MockServerFactoryContext> factory_context;
+  NiceMock<Envoy::StreamInfo::MockStreamInfo> stream_info;
+
+  // clusterB is selected (weight 100) but has no fallback config.
+  // The plugin should NOT check clusterA health and should return clusterB unchanged.
+  // No mock calls are expected because calculateWeightedClusterFallback returns early
+  // when the cluster is not in the config.
+
+  envoy::config::route::v3::RouteConfiguration route_config;
+  TestUtility::loadFromYaml(yaml, route_config);
+
+  auto config_or_error = Envoy::Router::ConfigImpl::create(
+      route_config, factory_context, ProtobufMessage::getNullValidationVisitor(), false);
+  ASSERT_TRUE(config_or_error.ok());
+  auto config = config_or_error.value();
+
+  auto route = config->route(genHeaders("some_cluster", "/foo", "GET"), stream_info, 0);
+  EXPECT_NE(nullptr, route.route);
+  // Should return clusterB (original), NOT clusterA (even though clusterA has fallback config)
+  EXPECT_EQ("clusterB", route->routeEntry()->clusterName());
 }
 
 } // namespace ClusterFallback

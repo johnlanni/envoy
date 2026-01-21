@@ -9,11 +9,12 @@ namespace ClusterFallback {
 
 Envoy::Router::ClusterSpecifierPluginSharedPtr
 ClusterFallbackPluginFactoryConfig::createClusterSpecifierPlugin(
-    const Protobuf::Message& config, Server::Configuration::CommonFactoryContext& context) {
+    const Protobuf::Message& config, Server::Configuration::ServerFactoryContext& context) {
   const auto& proto_config =
       MessageUtil::downcastAndValidate<const envoy::extensions::custom_cluster_plugins::
                                            cluster_fallback::v3::ClusterFallbackConfig&>(
           config, context.messageValidationVisitor());
+  // ServerFactoryContext can be implicitly converted to CommonFactoryContext&
   return std::make_shared<ClusterFallbackPlugin>(proto_config, context);
 }
 

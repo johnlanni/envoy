@@ -64,6 +64,13 @@ public:
 
   absl::Status validateClusters(const Upstream::ClusterManager& cm) const override;
 
+#if defined(HIGRESS)
+  // Set the fallback cluster specifier plugin for HIGRESS cluster fallback feature.
+  void setFallbackClusterSpecifierPlugin(ClusterSpecifierPluginSharedPtr plugin) {
+    fallback_cluster_specifier_plugin_ = std::move(plugin);
+  }
+#endif
+
 private:
   RouteConstSharedPtr pickWeightedCluster(RouteEntryAndRouteConstSharedPtr parent,
                                           const Http::RequestHeaderMap& headers,
@@ -76,6 +83,9 @@ private:
   const bool use_hash_policy_{};
   std::vector<WeightedClustersConfigEntryConstSharedPtr> weighted_clusters_;
   uint64_t total_cluster_weight_{0};
+#if defined(HIGRESS)
+  ClusterSpecifierPluginSharedPtr fallback_cluster_specifier_plugin_;
+#endif
 };
 
 } // namespace Router

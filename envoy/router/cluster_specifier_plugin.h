@@ -43,6 +43,22 @@ public:
                                     const Http::RequestHeaderMap& headers,
                                     const StreamInfo::StreamInfo& stream_info,
                                     uint64_t random) const PURE;
+
+#if defined(HIGRESS)
+  /**
+   * HIGRESS: Create route from existing route for fallback scenarios.
+   * This is used by ClusterFallbackPlugin to process the selected weighted cluster route.
+   *
+   * @param route the selected route from weighted cluster.
+   * @param headers request headers.
+   * @return RouteConstSharedPtr final route after fallback processing.
+   */
+  virtual RouteConstSharedPtr route(RouteConstSharedPtr route,
+                                    const Http::RequestHeaderMap& /*headers*/) const {
+    // Default implementation - just return the input route unchanged
+    return route;
+  }
+#endif
 };
 
 using ClusterSpecifierPluginSharedPtr = std::shared_ptr<ClusterSpecifierPlugin>;
