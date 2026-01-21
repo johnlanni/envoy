@@ -18,10 +18,10 @@ public:
   std::string name() const override { return "envoy.filters.connection_pools.http.dubbo_tcp"; }
   std::string category() const override { return "envoy.upstreams"; }
   Router::GenericConnPoolPtr
-  createGenericConnPool(Upstream::ThreadLocalCluster& thread_local_cluster, UpstreamProtocol upstream_protocol,
-                        const Router::RouteEntry& route_entry,
+  createGenericConnPool(Upstream::HostConstSharedPtr host, Upstream::ThreadLocalCluster& thread_local_cluster,
+                        UpstreamProtocol upstream_protocol, Upstream::ResourcePriority priority,
                         absl::optional<Envoy::Http::Protocol> downstream_protocol,
-                        Upstream::LoadBalancerContext* ctx) const override;
+                        Upstream::LoadBalancerContext* ctx, const Protobuf::Message& config) const override;
   ProtobufTypes::MessagePtr createEmptyConfigProto() override {
     return std::make_unique<
         envoy::extensions::upstreams::http::dubbo_tcp::v3::DubboTcpConnectionPoolProto>();

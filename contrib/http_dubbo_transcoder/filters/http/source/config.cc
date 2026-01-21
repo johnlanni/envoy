@@ -18,7 +18,7 @@ Http::FilterFactoryCb HttpDubboTranscodeFilterFactory::createFilterFactoryFromPr
   };
 }
 
-Router::RouteSpecificFilterConfigConstSharedPtr
+absl::StatusOr<Router::RouteSpecificFilterConfigConstSharedPtr>
 HttpDubboTranscodeFilterFactory::createRouteSpecificFilterConfigTyped(
     const envoy::extensions::filters::http::http_dubbo_transcoder::v3::HttpDubboTranscoder&
         proto_config,

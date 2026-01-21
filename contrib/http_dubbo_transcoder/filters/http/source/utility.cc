@@ -33,8 +33,9 @@ absl::optional<json> DubboUtility::convertStringToTypeValue(absl::string_view va
     envoy::type::matcher::v3::RegexMatcher matcher;
     *matcher.mutable_google_re2() = envoy::type::matcher::v3::RegexMatcher::GoogleRE2();
     matcher.set_regex("^-?([1-9]\\d*\\.\\d*|0\\.\\d*[1-9]\\d*|0?\\.0+|0)$");
-    const auto compiled_matcher = Regex::Utility::parseRegex(matcher);
-    if (!compiled_matcher->match(value)) {
+    Regex::GoogleReEngine engine;
+    const auto compiled_matcher = Regex::Utility::parseRegex(matcher, engine);
+    if (!compiled_matcher.ok() || !(*compiled_matcher)->match(value)) {
       return absl::nullopt;
     }
     return {json(strtod(value.data(), nullptr))};
@@ -42,8 +43,9 @@ absl::optional<json> DubboUtility::convertStringToTypeValue(absl::string_view va
     envoy::type::matcher::v3::RegexMatcher matcher;
     *matcher.mutable_google_re2() = envoy::type::matcher::v3::RegexMatcher::GoogleRE2();
     matcher.set_regex("^(0|[1-9][0-9]*|-[1-9][0-9]*)$");
-    const auto compiled_matcher = Regex::Utility::parseRegex(matcher);
-    if (!compiled_matcher->match(value)) {
+    Regex::GoogleReEngine engine;
+    const auto compiled_matcher = Regex::Utility::parseRegex(matcher, engine);
+    if (!compiled_matcher.ok() || !(*compiled_matcher)->match(value)) {
       return absl::nullopt;
     }
     return {json(strtoll(value.data(), nullptr, 10))};
@@ -174,8 +176,9 @@ json DubboUtility::hessian2Json(Object* input) {
     } else {
       for (auto& item : *(static_cast<Hessian2::TypedMapObject*>(input))) {
         Hessian2::StringObject& key = item.first->asType<Hessian2::StringObject>();
-        if (key.toMutableString() != nullptr) {
-          out[*(key.toMutableString())] = hessian2Json(item.second.get());
+        auto key_ref = key.toMutableString();
+        if (key_ref.has_value()) {
+          out[*key_ref] = hessian2Json(item.second.get());
         }
       }
     }
@@ -186,8 +189,12 @@ json DubboUtility::hessian2Json(Object* input) {
     } else {
       for (auto& item : *(static_cast<Hessian2::UntypedMapObject*>(input))) {
         Hessian2::StringObject& key = item.first->asType<Hessian2::StringObject>();
-        if (key.toMutableString() != nullptr && *(key.toMutableString()) != ClassKey) {
-          out[*(key.toMutableString())] = hessian2Json(item.second.get());
+        auto key_ref = key.toMutableString();
+        if (key_ref.has_value()) {
+          std::string key_str = (*key_ref).get();
+          if (key_str != ClassKey) {
+            out[key_str] = hessian2Json(item.second.get());
+          }
         }
       }
     }
@@ -225,7 +232,7 @@ json DubboUtility::hessian2Json(Object* input) {
     if (dynamic_cast<Hessian2::DoubleObject*>(input) == nullptr) {
       out = badCastErrorMessageJson(hessianType2String(input->type()));
     } else {
-      out = *(static_cast<Hessian2::DoubleObject*>(input)->toMutableDouble());
+      out = (*(static_cast<Hessian2::DoubleObject*>(input)->toMutableDouble())).get();
     }
   } break;
 
@@ -233,7 +240,7 @@ json DubboUtility::hessian2Json(Object* input) {
     if (dynamic_cast<Hessian2::IntegerObject*>(input) == nullptr) {
       out = badCastErrorMessageJson(hessianType2String(input->type()));
     } else {
-      out = *(static_cast<Hessian2::IntegerObject*>(input)->toMutableInteger());
+      out = (*(static_cast<Hessian2::IntegerObject*>(input)->toMutableInteger())).get();
     }
   } break;
 
@@ -241,7 +248,7 @@ json DubboUtility::hessian2Json(Object* input) {
     if (dynamic_cast<Hessian2::LongObject*>(input) == nullptr) {
       out = badCastErrorMessageJson(hessianType2String(input->type()));
     } else {
-      out = *(static_cast<Hessian2::LongObject*>(input)->toMutableLong());
+      out = (*(static_cast<Hessian2::LongObject*>(input)->toMutableLong())).get();
     }
   } break;
 
@@ -249,7 +256,7 @@ json DubboUtility::hessian2Json(Object* input) {
     if (dynamic_cast<Hessian2::BooleanObject*>(input) == nullptr) {
       out = badCastErrorMessageJson(hessianType2String(input->type()));
     } else {
-      out = *(static_cast<Hessian2::BooleanObject*>(input)->toMutableBoolean());
+      out = (*(static_cast<Hessian2::BooleanObject*>(input)->toMutableBoolean())).get();
     }
   } break;
 
@@ -266,8 +273,8 @@ json DubboUtility::hessian2Json(Object* input) {
     if (dynamic_cast<Hessian2::ClassInstanceObject*>(input) == nullptr) {
       out = badCastErrorMessageJson(hessianType2String(input->type()));
     } else {
-      const Hessian2::Object::ClassInstance* class_instance =
-          static_cast<Hessian2::ClassInstanceObject*>(input)->toClassInstance().value();
+      auto class_instance_ref = static_cast<Hessian2::ClassInstanceObject*>(input)->toClassInstance();
+      const Hessian2::Object::ClassInstance* class_instance = &(*class_instance_ref).get();
       RELEASE_ASSERT(class_instance->def_->field_names_.size() == class_instance->data_.size(),
                      "The size of def_->field_names_ and data_ of class_instance is inconsistent");
       out[ClassKey] = class_instance->def_->type_;
@@ -293,7 +300,7 @@ json DubboUtility::hessian2Json(Object* input) {
     if (dynamic_cast<Hessian2::BinaryObject*>(input) == nullptr) {
       out = badCastErrorMessageJson(hessianType2String(input->type()));
     } else {
-      out = *(static_cast<Hessian2::BinaryObject*>(input)->toMutableBinary());
+      out = (*(static_cast<Hessian2::BinaryObject*>(input)->toMutableBinary())).get();
     }
   } break;
 

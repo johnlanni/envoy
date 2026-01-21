@@ -28,7 +28,8 @@ private:
           proto_config,
       const std::string& stats_prefix, Server::Configuration::FactoryContext& context) override;
 
-  Router::RouteSpecificFilterConfigConstSharedPtr createRouteSpecificFilterConfigTyped(
+  absl::StatusOr<Router::RouteSpecificFilterConfigConstSharedPtr>
+  createRouteSpecificFilterConfigTyped(
       const envoy::extensions::filters::http::http_dubbo_transcoder::v3::HttpDubboTranscoder&
           proto_config,
       Server::Configuration::ServerFactoryContext& context,

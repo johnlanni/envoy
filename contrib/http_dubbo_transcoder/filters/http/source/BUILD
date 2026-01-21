@@ -75,7 +75,6 @@ envoy_cc_library(
         "hessian2_codec_object_impl",
         "hessian2_codec_codec_impl",
         "hessian2_codec_object_codec_lib",
-        "json",
     ],
     deps = [
         ":transcoder_interface",
@@ -87,5 +86,6 @@ envoy_cc_library(
         "//source/common/http:codes_lib",
         "//source/common/http:utility_lib",
         "@envoy_api//contrib/envoy/extensions/filters/http/http_dubbo_transcoder/v3:pkg_cc_proto",
+        "@com_github_nlohmann_json//:json",
     ],
 )

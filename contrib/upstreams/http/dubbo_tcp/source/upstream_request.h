@@ -35,9 +35,9 @@ constexpr absl::string_view ProtocolErrorMessage = "Not dubbo message";
 
 class TcpConnPool : public Router::GenericConnPool, public Envoy::Tcp::ConnectionPool::Callbacks {
 public:
-  TcpConnPool(Upstream::ThreadLocalCluster& thread_local_cluster,
-              const Router::RouteEntry& route_entry, Upstream::LoadBalancerContext* ctx) {
-    conn_pool_data_ = thread_local_cluster.tcpConnPool(route_entry.priority(), ctx);
+  TcpConnPool(Upstream::HostConstSharedPtr host, Upstream::ThreadLocalCluster& thread_local_cluster,
+              Upstream::ResourcePriority priority, Upstream::LoadBalancerContext* ctx) {
+    conn_pool_data_ = thread_local_cluster.tcpConnPool(host, priority, ctx);
   }
   void newStream(Router::GenericConnectionPoolCallbacks* callbacks) override {
     callbacks_ = callbacks;
@@ -56,7 +56,7 @@ public:
     return conn_pool_data_.value().host();
   }
 
-  bool valid() { return conn_pool_data_.has_value(); }
+  bool valid() const override { return conn_pool_data_.has_value(); }
 
   // Tcp::ConnectionPool::Callbacks
   void onPoolFailure(ConnectionPool::PoolFailureReason reason,
@@ -89,6 +89,7 @@ public:
   void readDisable(bool disable) override;
   void resetStream() override;
   void setAccount(Buffer::BufferMemoryAccountSharedPtr) override {}
+  void enableTcpTunneling() override {}
 
   // Tcp::ConnectionPool::UpstreamCallbacks
   void onUpstreamData(Buffer::Instance& data, bool end_stream) override;

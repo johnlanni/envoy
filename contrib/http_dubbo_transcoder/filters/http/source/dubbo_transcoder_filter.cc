@@ -28,12 +28,12 @@ static const std::string DubboGenericParamTypes =
 static const std::string DubboDefaultProtocolVsersion = "2.7.1";
 static const std::string DubboDefaultMethodVersion = "0.0.0";
 
-static const std::string AttachmentPathKey = "path";
-static const std::string AttachmentGenericKey = "generic";
-static const std::string AttachmentInterfaceKey = "interface";
-static const std::string AttachmentVersionKey = "version";
-static const std::string AttachmentTrueValue = "true";
-static const std::string AttachmentGroupKey = "group";
+[[maybe_unused]] static const std::string AttachmentPathKey = "path";
+[[maybe_unused]] static const std::string AttachmentGenericKey = "generic";
+[[maybe_unused]] static const std::string AttachmentInterfaceKey = "interface";
+[[maybe_unused]] static const std::string AttachmentVersionKey = "version";
+[[maybe_unused]] static const std::string AttachmentTrueValue = "true";
+[[maybe_unused]] static const std::string AttachmentGroupKey = "group";
 static const std::string ContentTypeHeaderValue = "application/json; charset=utf-8";
 static std::atomic_ulong RequestId{0};
 
@@ -148,10 +148,22 @@ DubboTranscoderConfig::createTranscoder(Http::RequestHeaderMap& headers) const {
 
   ENVOY_LOG(debug, "path is {} args is {} method is {}", path, args, method);
 
-  std::vector<VariableBinding> variable_bindings;
-  auto method_info = path_matcher_->Lookup(method, path, args, &variable_bindings, nullptr);
+  std::vector<google::grpc::transcoding::VariableBinding> grpc_variable_bindings;
+  std::string body_field_path;
+  auto method_info =
+      path_matcher_->Lookup(method, path, args, &grpc_variable_bindings, &body_field_path);
   if (!method_info) {
     return {absl::NotFoundError(fmt::format("Could not resolve {} to a method", path)), nullptr};
+  }
+
+  // Convert grpc_transcoding::VariableBinding to local VariableBinding
+  std::vector<VariableBinding> variable_bindings;
+  variable_bindings.reserve(grpc_variable_bindings.size());
+  for (const auto& grpc_binding : grpc_variable_bindings) {
+    VariableBinding local_binding;
+    local_binding.field_path.assign(grpc_binding.field_path.begin(), grpc_binding.field_path.end());
+    local_binding.value = grpc_binding.value;
+    variable_bindings.push_back(std::move(local_binding));
   }
 
   return {absl::OkStatus(), new Http2DubboTranscoder(*method_info, std::move(variable_bindings))};
@@ -237,15 +249,15 @@ absl::Status Http2DubboTranscoder::extractTranscoderParameters(Http::RequestHead
     std::string parameter_value;
     switch (parameter.extract_key_spec()) {
     case ParameterMapping::ALL_QUERY_PARAMETER: {
-      Http::Utility::QueryParams params = Http::Utility::parseQueryString(headers.getPathValue());
-      if (params.empty()) {
+      auto params = Http::Utility::QueryParamsMulti::parseQueryString(headers.getPathValue());
+      if (params.data().empty()) {
         return absl::InternalError("Error parsing query parameters");
       }
-
-      if (!params.count(extract_key)) {
+      auto value = params.getFirstValue(extract_key);
+      if (!value.has_value()) {
         return absl::NotFoundError(fmt::format("The parameter {} could not be found", extract_key));
       }
-      parameter_value = params[extract_key];
+      parameter_value = value.value();
       break;
     }
     case ParameterMapping::ALL_HEADER: {

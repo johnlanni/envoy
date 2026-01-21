@@ -39,7 +39,9 @@ services_mapping:
   TestUtility::loadFromYaml(yaml_string, proto_config);
   NiceMock<Server::Configuration::MockFactoryContext> context;
   HttpDubboTranscodeFilterFactory factory;
-  Http::FilterFactoryCb cb = factory.createFilterFactoryFromProto(proto_config, "stats", context);
+  auto cb_or = factory.createFilterFactoryFromProto(proto_config, "stats", context);
+  ASSERT_TRUE(cb_or.ok());
+  Http::FilterFactoryCb cb = *cb_or;
   Http::MockFilterChainFactoryCallbacks filter_callback;
   EXPECT_CALL(filter_callback, addStreamFilter(_));
   cb(filter_callback);
@@ -70,7 +72,8 @@ services_mapping:
   HttpDubboTranscodeFilterFactory factory;
   auto route_config = factory.createRouteSpecificFilterConfig(
       proto_config, context, ProtobufMessage::getStrictValidationVisitor());
-  const auto* config = dynamic_cast<const DubboTranscoderConfig*>(route_config.get());
+  ASSERT_TRUE(route_config.ok());
+  const auto* config = dynamic_cast<const DubboTranscoderConfig*>(route_config->get());
   EXPECT_FALSE(config->disabled());
 }
 
