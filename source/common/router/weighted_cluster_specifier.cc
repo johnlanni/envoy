@@ -298,16 +298,24 @@ RouteConstSharedPtr WeightedClusterSpecifierPlugin::pickWeightedCluster(
     }
 
     if (selected_value >= begin && selected_value < end) {
+      RouteConstSharedPtr selected_route;
       if (!cluster->cluster_name_.empty()) {
-        return std::make_shared<WeightedClusterEntry>(std::move(parent), "", cluster);
+        selected_route = std::make_shared<WeightedClusterEntry>(std::move(parent), "", cluster);
+      } else {
+        ASSERT(!cluster->cluster_header_name_.get().empty());
+        const auto entries = headers.get(cluster->cluster_header_name_);
+        absl::string_view cluster_name =
+            entries.empty() ? absl::string_view{} : entries[0]->value().getStringView();
+        selected_route = std::make_shared<WeightedClusterEntry>(std::move(parent),
+                                                                 std::string(cluster_name), cluster);
       }
-      ASSERT(!cluster->cluster_header_name_.get().empty());
-
-      const auto entries = headers.get(cluster->cluster_header_name_);
-      absl::string_view cluster_name =
-          entries.empty() ? absl::string_view{} : entries[0]->value().getStringView();
-      return std::make_shared<WeightedClusterEntry>(std::move(parent), std::string(cluster_name),
-                                                    cluster);
+#if defined(HIGRESS)
+      // Apply fallback plugin if configured
+      if (fallback_cluster_specifier_plugin_ != nullptr) {
+        return fallback_cluster_specifier_plugin_->route(selected_route, headers);
+      }
+#endif
+      return selected_route;
     }
     begin = end;
   }
