@@ -268,16 +268,16 @@ bazel build --config=clang -c opt <targets>
 
 **类型 A: 直接被 cherry-pick 修改的测试文件**
 
-从 `modified_files.txt` 或 git 中筛选出测试文件：
+使用 git 命令获取被修改的测试文件：
 ```bash
 # 查看所有被修改的测试文件
 git diff --name-only HEAD~1 | grep "^test/"
 
-# 或从 modified_files.txt 筛选
-cat modified_files.txt | grep "^test/"
+# 或查看 cherry-pick 提交修改的所有文件
+git show --name-only HEAD | grep "^test/"
 ```
 
-这些文件可能包含 SRDS patch 新增的测试代码，需要适配目标分支架构。
+这些文件可能包含 patch 新增的测试代码，需要适配目标分支架构。
 
 **类型 B: 源代码对应的测试文件**
 
@@ -290,7 +290,7 @@ cat modified_files.txt | grep "^test/"
 
 **完整测试列表示例**：
 ```
-# 类型 A: 直接被修改的测试文件（从 git diff 或 modified_files.txt 获取）
+# 类型 A: 直接被修改的测试文件（从 git diff --name-only HEAD~1 获取）
 test/common/<module>/<test_file>_test.cc     # 直接被 patch 修改的测试
 test/common/<module>/<other_test>_test.cc    # ← 容易遗漏！
 test/mocks/<module>/mocks.h
@@ -332,7 +332,7 @@ bazel test --config=clang -c opt \
   //test/common/<module2>:<test2>
 ```
 
-**注意**: 有些测试文件可能在冲突解决阶段没有冲突，但仍包含需要适配目标分支架构的代码。这些"无冲突"的测试文件**容易被遗漏**！必须从 `modified_files.txt` 完整检查所有测试文件。
+**注意**: 有些测试文件可能在冲突解决阶段没有冲突，但仍包含需要适配目标分支架构的代码。这些"无冲突"的测试文件**容易被遗漏**！必须用 `git diff --name-only HEAD~1` 完整检查所有测试文件。
 
 #### 8.3 处理测试失败
 
