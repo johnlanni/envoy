@@ -290,30 +290,21 @@ cat modified_files.txt | grep "^test/"
 
 **完整测试列表示例**：
 ```
-# 类型 A: 直接被修改的测试文件
-test/common/http/conn_manager_impl_test.cc
-test/common/http/conn_manager_impl_test_3.cc
-test/common/http/conn_manager_impl_test_base.cc
-test/common/http/conn_manager_impl_test_base.h
-test/common/http/conn_manager_impl_fuzz_test.cc
-test/common/router/config_impl_test.cc
-test/common/router/scoped_config_impl_test.cc
-test/common/router/scoped_rds_test.cc        # ← 容易遗漏！
-test/mocks/http/mocks.h
-test/mocks/router/mocks.cc
-test/mocks/router/mocks.h
+# 类型 A: 直接被修改的测试文件（从 git diff 或 modified_files.txt 获取）
+test/common/<module>/<test_file>_test.cc     # 直接被 patch 修改的测试
+test/common/<module>/<other_test>_test.cc    # ← 容易遗漏！
+test/mocks/<module>/mocks.h
+test/mocks/<module>/mocks.cc
 
 # 类型 B: 源代码对应的测试（可能与类型 A 重叠）
-# source/common/router/scoped_config_impl.cc → test/common/router/scoped_config_impl_test.cc
-# source/common/router/scoped_rds.cc → test/common/router/scoped_rds_test.cc
+# source/common/<module>/<impl>.cc → test/common/<module>/<impl>_test.cc
 ```
 
 **确定测试目标**：
 ```bash
 # 常见模式
-# source/common/http/ → //test/common/http:conn_manager_impl_test
-# source/common/router/ → //test/common/router:config_impl_test
-# source/common/router/ → //test/common/router:scoped_rds_test
+# source/common/http/ → //test/common/http:<test_name>
+# source/common/router/ → //test/common/router:<test_name>
 # source/extensions/filters/network/http_connection_manager/ → //test/extensions/filters/network/http_connection_manager:config_test
 ```
 
@@ -325,10 +316,9 @@ test/mocks/router/mocks.h
 ```bash
 # 编译所有被修改的测试
 bazel build --config=clang -c opt \
-  //test/common/http:conn_manager_impl_test \
-  //test/common/router:config_impl_test \
-  //test/common/router:scoped_rds_test \
-  //test/common/router:scoped_config_impl_test
+  //test/common/<module1>:<test1> \
+  //test/common/<module2>:<test2> \
+  ...
 ```
 
 **步骤 2**: 运行测试
@@ -338,12 +328,11 @@ bazel test --config=clang -c opt <test_targets>
 
 # 例如
 bazel test --config=clang -c opt \
-  //test/common/http:conn_manager_impl_test \
-  //test/common/router:config_impl_test \
-  //test/common/router:scoped_rds_test
+  //test/common/<module1>:<test1> \
+  //test/common/<module2>:<test2>
 ```
 
-**注意**: 有些测试文件可能在冲突解决阶段没有冲突（如 `scoped_rds_test.cc`），但仍包含需要适配目标分支架构的代码。这些"无冲突"的测试文件容易被遗漏！
+**注意**: 有些测试文件可能在冲突解决阶段没有冲突，但仍包含需要适配目标分支架构的代码。这些"无冲突"的测试文件**容易被遗漏**！必须从 `modified_files.txt` 完整检查所有测试文件。
 
 #### 8.3 处理测试失败
 
@@ -376,12 +365,12 @@ bazel test --config=clang -c opt \
    | 函数参数不匹配 | API 签名变化 | 适配新的函数签名 |
    | 命名空间变化 | 如 `ProtobufWkt` → `Protobuf` | 使用目标分支的命名空间 |
    
-   **示例**: `OptionalHttpFilters` 类型在 1.36 中已移除
+   **示例**: 源分支有的类型在目标分支已移除
    ```cpp
-   // 1.27 版本
-   void setup(const OptionalHttpFilters filters = OptionalHttpFilters()) {...}
+   // 源分支版本
+   void setup(const SomeRemovedType param = SomeRemovedType()) {...}
    
-   // 1.36 适配后
+   // 目标分支适配后
    void setup() {...}  // 移除参数
    ```
    
@@ -462,7 +451,7 @@ docs/cherry-pick-archives/
 
 **目录命名规范**: `YYYY-MM-DD_<commit_short_hash>_<source_branch>_to_<target_branch>`
 
-示例: `2026-01-22_9f11788a_1.27.7-merge_to_1.36.4-merge`
+示例: `2026-01-22_abc12345_source-branch_to_target-branch`
 
 #### 9.2 执行归档
 
@@ -472,7 +461,7 @@ docs/cherry-pick-archives/
 bash scripts/archive_docs.sh <commit_hash> <source_branch> <target_branch>
 
 # 示例
-bash scripts/archive_docs.sh 9f11788ab6f2 1.27.7-merge 1.36.4-merge
+bash scripts/archive_docs.sh <commit_hash> <source_branch> <target_branch>
 ```
 
 **方式二：手动归档**
@@ -543,7 +532,7 @@ git commit -m "docs: archive cherry-pick resolution for <commit_short>"
 > ⚠️ **重要**: 当后续发现遗漏问题并进行修复时，必须同步更新归档文档！
 
 **触发场景**：
-- 发现遗漏的测试文件需要修复（如本次 `scoped_rds_test.cc`）
+- 发现遗漏的测试文件需要修复
 - 发现新的编译问题
 - 用户指出之前的分析有遗漏或错误
 
@@ -564,7 +553,7 @@ git commit -m "docs: archive cherry-pick resolution for <commit_short>"
    
    | 日期 | 更新内容 | 原因 |
    |------|---------|------|
-   | YYYY-MM-DD | 新增 scoped_rds_test.cc 修复 | 初次归档时遗漏该测试文件 |
+   | YYYY-MM-DD | 新增 <test_file> 修复 | 初次归档时遗漏该测试文件 |
    ```
 
 3. **提交更新**：
@@ -612,7 +601,7 @@ git commit -m "docs: archive cherry-pick resolution for <commit_short>"
   - 用法: `bash scripts/archive_docs.sh <original_commit> <source_branch> <target_branch>`
   - 功能: 自动归档本次 cherry-pick 产生的所有文档，生成总结文档
   - 在 Phase 9 归档阶段使用
-  - 示例: `bash scripts/archive_docs.sh 9f11788ab6f2 1.27.7-merge 1.36.4-merge`
+  - 示例: `bash scripts/archive_docs.sh <commit_hash> <source_branch> <target_branch>`
 
 ## 输出文档
 
