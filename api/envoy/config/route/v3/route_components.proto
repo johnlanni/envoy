@@ -589,6 +589,15 @@ message WeightedCluster {
     google.protobuf.BoolValue use_hash_policy = 5;
   }
 
+  // Name of the cluster specifier plugin to use to determine the cluster for requests on this route.
+  // The cluster specifier plugin name must be defined in the associated
+  // :ref:`cluster specifier plugins <envoy_v3_api_field_config.route.v3.RouteConfiguration.cluster_specifier_plugins>`
+  // in the :ref:`name <envoy_v3_api_field_config.core.v3.TypedExtensionConfig.name>` field.
+  string cluster_specifier_plugin = 100;
+
+  // Custom cluster specifier plugin configuration to use to determine the cluster for requests
+  // on this route.
+  ClusterSpecifierPlugin inline_cluster_specifier_plugin = 101;
 }
 
 // Configuration for a cluster specifier plugin.

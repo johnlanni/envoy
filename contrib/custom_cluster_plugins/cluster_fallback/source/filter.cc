@@ -64,16 +64,15 @@ ClusterFallbackPlugin::route(Envoy::Router::RouteConstSharedPtr route,
   const auto* route_entry = route->routeEntry();
   const std::string& cluster_name = route_entry->clusterName();
 
-  // Check if this is a weighted cluster scenario (multiple fallback configs)
-  // or normal cluster scenario (single fallback config)
-  if (clusters_config_.size() > 1) {
-    return calculateWeightedClusterFallback(route, cluster_name);
-  }
-  return calculateNormalClusterFallback(route, cluster_name);
+  // This 2-parameter route() is ONLY called from WeightedClusterSpecifierPlugin,
+  // so we always use weighted cluster fallback logic. This ensures that if a cluster
+  // is not in the fallback config, we return the original route unchanged.
+  return calculateWeightedClusterFallback(route, cluster_name);
 }
 
-Envoy::Router::RouteConstSharedPtr ClusterFallbackPlugin::calculateNormalClusterFallback(
-    Envoy::Router::RouteConstSharedPtr route, const std::string& original_cluster) const {
+Envoy::Router::RouteConstSharedPtr
+ClusterFallbackPlugin::calculateNormalClusterFallback(Envoy::Router::RouteConstSharedPtr route,
+                                                      const std::string& original_cluster) const {
   ASSERT(clusters_config_.size() == 1);
 
   auto first_item = clusters_config_.begin();
@@ -84,28 +83,29 @@ Envoy::Router::RouteConstSharedPtr ClusterFallbackPlugin::calculateNormalCluster
     if (original_cluster == first_item->first) {
       return route;
     }
-    return std::make_shared<Envoy::Router::DynamicRouteEntry>(std::move(route), 
-                                                               std::string(first_item->first));
+    return std::make_shared<Envoy::Router::DynamicRouteEntry>(std::move(route),
+                                                              std::string(first_item->first));
   }
 
   for (const auto& cluster_name : first_item->second) {
     if (hasHealthHost(cluster_name)) {
-      ENVOY_LOG(debug, "Falling back to cluster {}", cluster_name);
+      ENVOY_LOG(info, "Falling back to cluster {}", cluster_name);
       return std::make_shared<Envoy::Router::DynamicRouteEntry>(std::move(route),
-                                                                 std::string(cluster_name));
+                                                                std::string(cluster_name));
     }
   }
 
-  ENVOY_LOG(debug, "All clusters have no healthy nodes, the original routing cluster is returned");
+  ENVOY_LOG(info, "All clusters have no healthy nodes, the original routing cluster is returned");
   return std::make_shared<Envoy::Router::DynamicRouteEntry>(std::move(route),
-                                                             std::string(first_item->first));
+                                                            std::string(first_item->first));
 }
 
-Envoy::Router::RouteConstSharedPtr ClusterFallbackPlugin::calculateWeightedClusterFallback(
-    Envoy::Router::RouteConstSharedPtr route, const std::string& cluster_name) const {
+Envoy::Router::RouteConstSharedPtr
+ClusterFallbackPlugin::calculateWeightedClusterFallback(Envoy::Router::RouteConstSharedPtr route,
+                                                        const std::string& cluster_name) const {
   auto search = clusters_config_.find(cluster_name);
   if (search == clusters_config_.end()) {
-    ENVOY_LOG(debug, "there is no fallback cluster config for {}, returning original route",
+    ENVOY_LOG(warn, "there is no fallback cluster config for {}, returning original route",
               cluster_name);
     return route;
   }
@@ -118,13 +118,13 @@ Envoy::Router::RouteConstSharedPtr ClusterFallbackPlugin::calculateWeightedClust
 
   for (const auto& fallback_cluster : search->second) {
     if (hasHealthHost(fallback_cluster)) {
-      ENVOY_LOG(debug, "Falling back from {} to cluster {}", cluster_name, fallback_cluster);
+      ENVOY_LOG(info, "Falling back from {} to cluster {}", cluster_name, fallback_cluster);
       return std::make_shared<Envoy::Router::DynamicRouteEntry>(std::move(route),
-                                                                 std::string(fallback_cluster));
+                                                                std::string(fallback_cluster));
     }
   }
 
-  ENVOY_LOG(debug, "All clusters have no healthy nodes, the original routing cluster is returned");
+  ENVOY_LOG(info, "All clusters have no healthy nodes, the original routing cluster is returned");
   return route;
 }
 
