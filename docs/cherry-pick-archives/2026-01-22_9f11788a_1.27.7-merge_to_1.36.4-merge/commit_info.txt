@@ -1,0 +1,34 @@
+commit 9f11788ab6f2e14fac41db64928ac96dd6c53806
+Author: jingze <daijingze.djz@alibaba-inc.com>
+Date:   Mon Jan 19 15:40:41 2026 +0800
+
+    Apply patch: 000-3-srds.patch
+    
+    Change-Id: Ic38c6b82aa86524befd8b51e49086afa226723bf
+    Co-developed-by: Cursor <noreply@cursor.com>
+
+ api/envoy/config/route/v3/route_components.proto   | 135 +++++++-
+ .../v3/http_connection_manager.proto               |  31 ++
+ envoy/router/scopes.h                              |  27 +-
+ source/common/http/conn_manager_config.h           |   8 +
+ source/common/http/conn_manager_impl.cc            |  64 +++-
+ source/common/http/conn_manager_impl.h             |   4 +
+ source/common/http/conn_manager_utility.cc         |   5 +
+ source/common/router/config_impl.cc                |  77 +++++
+ source/common/router/config_impl.h                 |  66 ++++
+ source/common/router/scoped_config_impl.cc         | 199 ++++++++++++
+ source/common/router/scoped_config_impl.h          |  73 ++++-
+ .../network/http_connection_manager/config.cc      |   6 +
+ .../network/http_connection_manager/config.h       |  10 +
+ source/server/admin/admin.h                        |  11 +
+ test/common/http/conn_manager_impl_fuzz_test.cc    |   6 +
+ test/common/http/conn_manager_impl_test.cc         |  28 ++
+ test/common/http/conn_manager_impl_test_2.cc       |  46 ++-
+ test/common/http/conn_manager_impl_test_base.h     |   6 +
+ test/common/router/config_impl_test.cc             | 240 +++++++++++++-
+ test/common/router/scoped_config_impl_test.cc      |  70 +++++
+ test/common/router/scoped_rds_test.cc              | 349 ++++++++++++++++++++-
+ test/mocks/http/mocks.h                            |   3 +
+ test/mocks/router/mocks.cc                         |   3 +
+ test/mocks/router/mocks.h                          |  14 +
+ 24 files changed, 1471 insertions(+), 10 deletions(-)
