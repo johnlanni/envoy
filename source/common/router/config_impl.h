@@ -143,6 +143,9 @@ public:
 };
 class SslPermanentRedirectRoute : public SslRedirectRoute {
 public:
+  SslPermanentRedirectRoute(VirtualHostConstSharedPtr virtual_host)
+      : SslRedirectRoute(std::move(virtual_host)) {}
+
   const DirectResponseEntry* directResponseEntry() const override {
     return &SSL_PERMANENT_REDIRECTOR;
   }
@@ -153,41 +156,44 @@ private:
 
 class SNIRedirector : public DirectResponseEntry {
 public:
-  // Router::DirectResponseEntry
+  // Router::ResponseEntry
   void finalizeResponseHeaders(Http::ResponseHeaderMap&,
+                               const Formatter::HttpFormatterContext&,
                                const StreamInfo::StreamInfo&) const override {}
   Http::HeaderTransforms responseHeaderTransforms(const StreamInfo::StreamInfo&,
                                                   bool) const override {
     return {};
   }
+  // Router::DirectResponseEntry
   std::string newUri(const Http::RequestHeaderMap&) const override { return ""; };
   void rewritePathHeader(Http::RequestHeaderMap&, bool) const override {}
   Http::Code responseCode() const override { return Http::Code::MisdirectedRequest; }
   const std::string& responseBody() const override { return EMPTY_STRING; }
-  const std::string& routeName() const override { return route_name_; }
-
-private:
-  const std::string route_name_;
 };
 
 class SNIRedirectRoute : public Route {
 public:
+  SNIRedirectRoute(VirtualHostConstSharedPtr virtual_host)
+      : virtual_host_(std::move(virtual_host)) {}
+
   // Router::Route
   const DirectResponseEntry* directResponseEntry() const override { return &SNI_REDIRECTOR; }
   const RouteEntry* routeEntry() const override { return nullptr; }
   const Decorator* decorator() const override { return nullptr; }
   const RouteTracing* tracingConfig() const override { return nullptr; }
-  const RouteSpecificFilterConfig* mostSpecificPerFilterConfig(const std::string&) const override {
+  const RouteSpecificFilterConfig* mostSpecificPerFilterConfig(absl::string_view) const override {
     return nullptr;
   }
-  bool filterDisabled(absl::string_view) const override { return false; }
-  void traversePerFilterConfig(
-      const std::string&,
-      std::function<void(const Router::RouteSpecificFilterConfig&)>) const override {}
+  absl::optional<bool> filterDisabled(absl::string_view) const override { return {}; }
+  RouteSpecificFilterConfigs perFilterConfigs(absl::string_view) const override { return {}; }
   const envoy::config::core::v3::Metadata& metadata() const override { return metadata_; }
   const Envoy::Config::TypedMetadata& typedMetadata() const override { return typed_metadata_; }
+  const std::string& routeName() const override { return EMPTY_STRING; }
+  const VirtualHostConstSharedPtr& virtualHost() const override { return virtual_host_; }
 
 private:
+  const VirtualHostConstSharedPtr virtual_host_;
+
   static const SNIRedirector SNI_REDIRECTOR;
   static const envoy::config::core::v3::Metadata metadata_;
   static const Envoy::Config::TypedMetadataImpl<Envoy::Config::TypedMetadataFactory>
@@ -446,16 +452,13 @@ public:
 private:
   enum class SslRequirements : uint8_t { None, ExternalOnly, All };
 
-  static const std::shared_ptr<const SslRedirectRoute> SSL_REDIRECT_ROUTE;
-#if defined(HIGRESS)
-  static const std::shared_ptr<const SslPermanentRedirectRoute> SSL_PERMANENT_REDIRECT_ROUTE;
-  static const std::shared_ptr<const SNIRedirectRoute> SNI_REDIRECT_ROUTE;
-#endif
-
-
   CommonVirtualHostSharedPtr shared_virtual_host_;
 
   std::shared_ptr<const SslRedirectRoute> ssl_redirect_route_;
+#if defined(HIGRESS)
+  std::shared_ptr<const SslPermanentRedirectRoute> ssl_permanent_redirect_route_;
+  std::shared_ptr<const SNIRedirectRoute> sni_redirect_route_;
+#endif
   SslRequirements ssl_requirements_;
 
   std::vector<RouteEntryImplBaseConstSharedPtr> routes_;

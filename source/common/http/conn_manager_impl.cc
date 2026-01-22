@@ -1642,7 +1642,7 @@ void ConnectionManagerImpl::startDrainSequence() {
 void ConnectionManagerImpl::ActiveStream::snapScopedRouteConfig() {
 #if defined(HIGRESS)
   snapped_route_config_ = snapped_scoped_routes_config_->getRouteConfig(
-      connection_manager_.config_.scopeKeyBuilder().ptr(), *request_headers_,
+      connection_manager_.config_->scopeKeyBuilder().ptr(), *request_headers_,
       &connection()->streamInfo());
 #else
   // NOTE: if a RDS subscription hasn't got a RouteConfiguration back, a Router::NullConfigImpl is
@@ -1948,10 +1948,10 @@ void ConnectionManagerImpl::ActiveStream::encodeHeaders(ResponseHeaderMap& heade
       // Do not do this for H2 (which drains via GOAWAY) or Upgrade or CONNECT (as the
       // payload is no longer HTTP/1.1)
       headers.setReferenceConnection(Headers::get().ConnectionValues.Close);
-    } else if (connection_manager_.config_.keepaliveHeaderTimeout().count() != 0) {
+    } else if (connection_manager_.config_->keepaliveHeaderTimeout().count() != 0) {
       headers.setKeepAlive(absl::StrCat(
           "timeout=",
-          std::to_string(connection_manager_.config_.keepaliveHeaderTimeout().count())));
+          std::to_string(connection_manager_.config_->keepaliveHeaderTimeout().count())));
       headers.setReferenceConnection(Headers::get().ConnectionValues.KeepAlive);
     }
   }
@@ -2373,26 +2373,15 @@ void ConnectionManagerImpl::ActiveStream::recreateStream(
 
   Buffer::InstancePtr request_data = std::make_unique<Buffer::OwnedImpl>();
 #if defined(HIGRESS)
-  bool proxy_body = false;
-  const auto& original_buffered_request_data = filter_manager_.originalBufferedRequestData();
-  if (use_original_request_body && original_buffered_request_data != nullptr &&
-      original_buffered_request_data->length() > 0) {
-    proxy_body = true;
-    request_data->move(*original_buffered_request_data);
-  } else {
-    const auto& buffered_request_data = filter_manager_.bufferedRequestData();
-    proxy_body = buffered_request_data != nullptr && buffered_request_data->length() > 0;
-    if (proxy_body) {
-      request_data->move(*buffered_request_data);
-    }
-  }
-#else
+  // TODO(higress): In 1.36+, originalBufferedRequestData() doesn't exist.
+  // Using bufferedRequestData() for now - may need to add original data tracking later.
+  UNREFERENCED_PARAMETER(use_original_request_body);
+#endif
   const auto& buffered_request_data = filter_manager_.bufferedRequestData();
   const bool proxy_body = buffered_request_data != nullptr && buffered_request_data->length() > 0;
   if (proxy_body) {
     request_data->move(*buffered_request_data);
   }
-#endif
 
   response_encoder->getStream().removeCallbacks(*this);
 

@@ -1658,6 +1658,11 @@ VirtualHostImpl::VirtualHostImpl(const envoy::config::route::v3::VirtualHost& vi
     break;
   }
   ssl_redirect_route_ = std::make_shared<SslRedirectRoute>(shared_virtual_host_);
+#if defined(HIGRESS)
+  ssl_permanent_redirect_route_ =
+      std::make_shared<SslPermanentRedirectRoute>(shared_virtual_host_);
+  sni_redirect_route_ = std::make_shared<SNIRedirectRoute>(shared_virtual_host_);
+#endif
 
   if (virtual_host.has_matcher()) {
     RouteActionContext context{shared_virtual_host_, factory_context};
@@ -1700,21 +1705,13 @@ VirtualHostImpl::VirtualHostImpl(const envoy::config::route::v3::VirtualHost& vi
 #endif
 }
 
-const std::shared_ptr<const SslRedirectRoute> VirtualHostImpl::SSL_REDIRECT_ROUTE{
-    new SslRedirectRoute()};
-
 #if defined(HIGRESS)
 const SslPermanentRedirector SslPermanentRedirectRoute::SSL_PERMANENT_REDIRECTOR;
-const std::shared_ptr<const SslPermanentRedirectRoute>
-    VirtualHostImpl::SSL_PERMANENT_REDIRECT_ROUTE{new SslPermanentRedirectRoute};
 
 const SNIRedirector SNIRedirectRoute::SNI_REDIRECTOR;
 const envoy::config::core::v3::Metadata SNIRedirectRoute::metadata_;
 const Envoy::Config::TypedMetadataImpl<Envoy::Config::TypedMetadataFactory>
     SNIRedirectRoute::typed_metadata_({});
-
-const std::shared_ptr<const SNIRedirectRoute> VirtualHostImpl::SNI_REDIRECT_ROUTE{
-    new SNIRedirectRoute()};
 #endif
 
 
@@ -1798,15 +1795,15 @@ RouteConstSharedPtr VirtualHostImpl::getRouteFromEntries(const RouteCallback& cb
       }
     }
   }
-  return SNI_REDIRECT_ROUTE;
+  return sni_redirect_route_;
 
 SNI_CHECK_PASS:
   // Second check for ssl redirect
-  RouteConstSharedPtr redirect_route = SSL_PERMANENT_REDIRECT_ROUTE;
+  RouteConstSharedPtr redirect_route = ssl_permanent_redirect_route_;
   // only return 301 when http method is GET or HEAD
   if (headers.Method() && (headers.Method()->value() == Http::Headers::get().MethodValues.Get ||
                            headers.Method()->value() == Http::Headers::get().MethodValues.Head)) {
-    redirect_route = SSL_REDIRECT_ROUTE;
+    redirect_route = ssl_redirect_route_;
   }
   if (ssl_requirements_ == SslRequirements::All && scheme != "https") {
     return redirect_route;

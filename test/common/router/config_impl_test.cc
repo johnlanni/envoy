@@ -12388,7 +12388,8 @@ virtual_hosts:
   ON_CALL(stream_info, downstreamAddressProvider())
       .WillByDefault(ReturnPointee(downstream_connection_info_provider));
   factory_context_.cluster_manager_.initializeClusters({"foo_bar_baz", "foo_bar", "default"}, {});
-  TestConfigImpl config(parseRouteConfigurationFromYaml(yaml), factory_context_, true);
+  TestConfigImpl config(parseRouteConfigurationFromYaml(yaml), factory_context_, true,
+                        creation_status_);
   RouteConstSharedPtr accepted_route = config.route(
       [](RouteConstSharedPtr, RouteEvalStatus) -> RouteMatchStatus {
         ADD_FAILURE() << "RouteCallback should not be invoked since there are no matching "
@@ -12450,7 +12451,8 @@ virtual_hosts:
   ON_CALL(stream_info, downstreamAddressProvider())
       .WillByDefault(ReturnPointee(downstream_connection_info_provider));
   factory_context_.cluster_manager_.initializeClusters({"foo_bar_baz", "foo_bar", "default"}, {});
-  TestConfigImpl config(parseRouteConfigurationFromYaml(yaml), factory_context_, true);
+  TestConfigImpl config(parseRouteConfigurationFromYaml(yaml), factory_context_, true,
+                        creation_status_);
   RouteConstSharedPtr accepted_route = config.route(
       [](RouteConstSharedPtr, RouteEvalStatus) -> RouteMatchStatus {
         ADD_FAILURE() << "RouteCallback should not be invoked since there are no matching "
@@ -12511,7 +12513,8 @@ virtual_hosts:
   ON_CALL(stream_info, downstreamAddressProvider())
       .WillByDefault(ReturnPointee(downstream_connection_info_provider));
   factory_context_.cluster_manager_.initializeClusters({"foo_bar_baz", "foo_bar", "default"}, {});
-  TestConfigImpl config(parseRouteConfigurationFromYaml(yaml), factory_context_, true);
+  TestConfigImpl config(parseRouteConfigurationFromYaml(yaml), factory_context_, true,
+                        creation_status_);
   downstream_connection_info_provider->setRequestedServerName("example.com");
   std::vector<std::string> clusters{"default", "foo_bar", "foo_bar_baz"};
   RouteConstSharedPtr accepted_route = config.route(
@@ -12558,7 +12561,8 @@ virtual_hosts:
   ON_CALL(stream_info, downstreamAddressProvider())
       .WillByDefault(ReturnPointee(downstream_connection_info_provider));
   factory_context_.cluster_manager_.initializeClusters({"foo_bar_baz", "foo_bar", "default"}, {});
-  TestConfigImpl config(parseRouteConfigurationFromYaml(yaml), factory_context_, true);
+  TestConfigImpl config(parseRouteConfigurationFromYaml(yaml), factory_context_, true,
+                        creation_status_);
   downstream_connection_info_provider->setRequestedServerName("example.com");
   std::vector<std::string> clusters{"default", "foo_bar", "foo_bar_baz"};
   RouteConstSharedPtr accepted_route = config.route(

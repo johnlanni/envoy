@@ -1503,7 +1503,7 @@ TEST_F(HttpConnectionManagerImplTest, DateHeaderPresent) {
 
 #if defined(HIGRESS)
 TEST_F(HttpConnectionManagerImplTest, KeepaliveHeaderNotAppend) {
-  setup(false, "");
+  setup();
   setUpEncoderAndDecoder(false, false);
   sendRequestHeadersAndData();
   const auto* modified_headers = sendResponseHeaders(
@@ -1514,7 +1514,7 @@ TEST_F(HttpConnectionManagerImplTest, KeepaliveHeaderNotAppend) {
 }
 
 TEST_F(HttpConnectionManagerImplTest, KeepaliveHeaderAppend) {
-  setup(false, "");
+  setup();
   setUpEncoderAndDecoder(false, false);
   keepalive_header_timeout_ = std::chrono::seconds(60);
   sendRequestHeadersAndData();
