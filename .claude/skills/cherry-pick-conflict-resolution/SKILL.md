@@ -538,6 +538,43 @@ git add docs/cherry-pick-archives/
 git commit -m "docs: archive cherry-pick resolution for <commit_short>"
 ```
 
+#### 9.5 增量更新归档
+
+> ⚠️ **重要**: 当后续发现遗漏问题并进行修复时，必须同步更新归档文档！
+
+**触发场景**：
+- 发现遗漏的测试文件需要修复（如本次 `scoped_rds_test.cc`）
+- 发现新的编译问题
+- 用户指出之前的分析有遗漏或错误
+
+**更新流程**：
+
+1. **修复问题后，立即更新对应的归档文档**：
+   ```bash
+   # 更新测试修复计划
+   vim docs/cherry-pick-archives/<archive_dir>/TEST_FIX_PLAN.md
+   
+   # 或更新编译修复计划
+   vim docs/cherry-pick-archives/<archive_dir>/COMPILATION_FIX_PLAN.md
+   ```
+
+2. **在 SUMMARY.md 中记录增量更新**：
+   ```markdown
+   ## 增量更新记录
+   
+   | 日期 | 更新内容 | 原因 |
+   |------|---------|------|
+   | YYYY-MM-DD | 新增 scoped_rds_test.cc 修复 | 初次归档时遗漏该测试文件 |
+   ```
+
+3. **提交更新**：
+   ```bash
+   git add docs/cherry-pick-archives/<archive_dir>/
+   git commit -m "docs: update archive with additional fixes for <issue>"
+   ```
+
+**原则**: 归档文档应始终反映 cherry-pick 的**最终完整状态**，而不仅仅是初次归档时的状态。
+
 ## 常见陷阱
 
 | 陷阱 | 错误做法 | 正确做法 |
@@ -552,8 +589,8 @@ git commit -m "docs: archive cherry-pick resolution for <commit_short>"
 | Mock 签名不匹配 | 只 mock 一种方法签名 | 根据条件编译选择正确的 mock |
 | 忽略条件编译 | 测试代码不考虑 HIGRESS 等宏 | 测试也需添加条件编译分支 |
 | **类型移除** | 继续使用源分支的类型 | 检查类型在目标分支是否存在 |
-| **nodiscard 属性** | 忽略函数返回值 | 检查并处理返回值 |
 | 跳过文档归档 | 完成后直接删除临时文档 | 归档保存以便未来排查 |
+| **归档不同步** | 后续修复不更新归档 | 每次修复后同步更新归档文档 |
 
 ## 参考资料
 
