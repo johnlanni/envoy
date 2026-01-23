@@ -1,0 +1,25 @@
+commit 177ede5e7e70348bcdd118453bae3b299cd164e8
+Author: jingze <daijingze.djz@alibaba-inc.com>
+Date:   Fri Jan 23 11:49:40 2026 +0800
+
+    fix(custom_response): adapt to 1.36 architecture
+    
+    Remove duplicate proto field definitions in WeightedCluster
+    Adapt getByKey API to get API for RequestHeaderMap
+    Add missing grpc/common.h header include
+    Fix test assertion for new header API return type
+    Architecture changes from 1.27 to 1.36:
+    
+    RequestHeaderMap::getByKey replaced with get() returning HeaderStringResult
+    Proto field validation stricter in 1.36
+    Test: bazel test //test/extensions/filters/http/custom_response:custom_response_filter_test PASSED
+    
+    Change-Id: I34e1a146e2586c9c3ccf09dc5c2341105bab4a57
+    Co-developed-by: Claude <noreply@anthropic.com>
+
+ api/envoy/config/route/v3/route_components.proto               | 10 ----------
+ source/extensions/filters/http/custom_response/BUILD           |  1 +
+ .../filters/http/custom_response/custom_response_filter.cc     |  1 +
+ .../http/custom_response/redirect_policy/redirect_policy.cc    |  7 ++++---
+ .../http/custom_response/custom_response_filter_test.cc        |  6 +++++-
+ 5 files changed, 11 insertions(+), 14 deletions(-)
