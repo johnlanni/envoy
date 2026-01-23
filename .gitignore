@@ -8,6 +8,7 @@
 !\.bazelversion
 !\.circleci
 !\.clang-format
+!\.claude
 !\.clang-tidy
 !\.coveragerc
 !\.devcontainer
