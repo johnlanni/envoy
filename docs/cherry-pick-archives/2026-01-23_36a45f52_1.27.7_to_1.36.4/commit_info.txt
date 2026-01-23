@@ -1,0 +1,42 @@
+commit 4d449e6dbc1d6b99f1641885e2452524765bb51b
+Author: jingze <daijingze.djz@alibaba-inc.com>
+Date:   Mon Jan 19 17:39:16 2026 +0800
+
+    Apply patch: 000-6-redis-async-client.patch
+    
+    Change-Id: I386e1fec257593b454d71d253110d6800fcc1a85
+    Co-developed-by: Cursor <noreply@cursor.com>
+
+ envoy/redis/BUILD                                  |  14 +
+ envoy/redis/async_client.h                         |  72 +++
+ envoy/upstream/BUILD                               |   6 +
+ envoy/upstream/thread_local_cluster.h              |   4 +
+ source/common/redis/BUILD                          |  27 +
+ source/common/redis/async_client_impl.cc           | 300 ++++++++++
+ source/common/redis/async_client_impl.h            | 162 ++++++
+ source/common/upstream/BUILD                       |   3 +
+ source/common/upstream/cluster_manager_impl.cc     |  23 +
+ source/common/upstream/cluster_manager_impl.h      |   6 +
+ source/extensions/common/redis/BUILD               |   5 +
+ .../extensions/filters/network/common/redis/BUILD  |  38 ++
+ .../filters/network/common/redis/client.h          |   8 +
+ .../filters/network/common/redis/codec.h           |  29 +
+ .../filters/network/common/redis/codec_impl.cc     | 235 ++++++++
+ .../filters/network/common/redis/codec_impl.h      |  66 ++-
+ .../filters/network/common/redis/raw_client.h      |  89 +++
+ .../network/common/redis/raw_client_impl.cc        | 266 +++++++++
+ .../filters/network/common/redis/raw_client_impl.h | 116 ++++
+ .../filters/network/common/redis/utility.cc        |  36 ++
+ .../filters/network/common/redis/utility.h         |   7 +
+ test/extensions/filters/network/common/redis/BUILD |   6 +
+ .../network/common/redis/client_impl_test.cc       | 617 +++++++++++++++++++++
+ .../network/common/redis/codec_impl_test.cc        | 171 ++++++
+ .../filters/network/common/redis/mocks.cc          |  14 +
+ .../filters/network/common/redis/mocks.h           |  23 +
+ test/mocks/redis/BUILD                             |  22 +
+ test/mocks/redis/mocks.cc                          |  32 ++
+ test/mocks/redis/mocks.h                           |  77 +++
+ test/mocks/upstream/BUILD                          |   3 +
+ test/mocks/upstream/thread_local_cluster.cc        |   3 +
+ test/mocks/upstream/thread_local_cluster.h         |   7 +
+ 32 files changed, 2485 insertions(+), 2 deletions(-)

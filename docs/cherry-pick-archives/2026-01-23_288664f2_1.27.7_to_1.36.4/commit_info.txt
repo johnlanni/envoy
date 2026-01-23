@@ -1,0 +1,31 @@
+commit 150b8cf04039f52e2fa7a7258d2734a81f5baa7d
+Author: jingze <daijingze.djz@alibaba-inc.com>
+Date:   Fri Jan 23 13:57:52 2026 +0800
+
+    fix: adapt 000-5 patch to 1.36.4 API changes
+    
+    Changes to adapt the active redirect policy patch to 1.36.4:
+    
+    - HeaderParser::configure() now returns absl::StatusOr<HeaderParserPtr>
+    - Regex::Utility::parseRegex() requires regex_engine parameter
+    - translateOpaqueConfig() returns absl::Status (requires THROW_IF_NOT_OK)
+    - Remove clone() method that used incompatible DynamicRouteEntry API
+    - routeName() is now in Route interface, not RouteEntry/DirectResponseEntry
+    - Add path_utility.h include for PathUtil namespace
+    - Remove obsolete static member from async_client_impl.cc
+    - Add internalActiveRedirectPolicy() mock methods to MockRoute
+    - Remove external_deps for abseil_optional (not exist in 1.36.4)
+    
+    Change-Id: I0000000000000000000000000000000000000005
+    Co-developed-by: Cursor <noreply@cursor.com>
+
+ contrib/common/active_redirect/source/BUILD        |  1 -
+ .../source/active_redirect_policy_impl.cc          | 41 +++++++++++++++-------
+ .../source/active_redirect_policy_impl.h           |  9 +++--
+ source/common/http/async_client_impl.cc            |  5 ---
+ source/common/router/config_impl.cc                | 12 ++++---
+ source/common/router/config_impl.h                 |  7 ++--
+ source/common/router/router.cc                     |  4 +--
+ test/mocks/router/mocks.cc                         |  4 +++
+ test/mocks/router/mocks.h                          |  6 ++++
+ 9 files changed, 55 insertions(+), 34 deletions(-)
