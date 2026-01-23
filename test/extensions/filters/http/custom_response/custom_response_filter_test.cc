@@ -332,7 +332,11 @@ TEST_F(CustomResponseFilterTest, MultiRedirectCustomStatus) {
   EXPECT_EQ(filter_->encodeHeaders(response_headers, true),
             ::Envoy::Http::FilterHeadersStatus::StopIteration);
   EXPECT_EQ("foo.example", request_headers.getHostValue());
-  EXPECT_EQ("x-bar2", request_headers.getByKey("foo2"));
+  {
+    auto result = request_headers.get(::Envoy::Http::LowerCaseString("foo2"));
+    ASSERT_FALSE(result.empty());
+    EXPECT_EQ("x-bar2", result[0]->value().getStringView());
+  }
   EXPECT_EQ("502", response_headers.getStatusValue());
   EXPECT_TRUE(response_headers.get(::Envoy::Http::LowerCaseString("foo1")).empty());
   // new stream

@@ -19,6 +19,7 @@ envoy_cc_library(
     ],
     deps = [
         ":config",
+        "//source/common/grpc:common_lib",
         "//source/common/http:headers_lib",
         "//source/common/http:message_lib",
         "//source/common/http:utility_lib",

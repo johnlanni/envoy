@@ -225,10 +225,11 @@ std::unique_ptr<ModifyRequestHeadersAction> RedirectPolicy::createModifyRequestH
 #if defined(HIGRESS)
   if (use_original_request_uri_) {
     std::string real_original_host;
-    const auto x_envoy_original_host = downstream_headers->getByKey(
+    const auto x_envoy_original_host_result = downstream_headers->get(
         ::Envoy::Http::CustomHeaders::get().AliExtendedValues.XEnvoyOriginalHost);
-    if (x_envoy_original_host && !(*x_envoy_original_host).empty()) {
-      real_original_host = *x_envoy_original_host;
+    if (!x_envoy_original_host_result.empty() &&
+        !x_envoy_original_host_result[0]->value().empty()) {
+      real_original_host = std::string(x_envoy_original_host_result[0]->value().getStringView());
     } else {
       real_original_host = original_host;
     }

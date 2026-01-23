@@ -5,6 +5,7 @@
 #include "envoy/stream_info/filter_state.h"
 
 #include "source/common/common/enum_to_int.h"
+#include "source/common/grpc/common.h"
 #include "source/common/http/header_map_impl.h"
 #include "source/common/http/message_impl.h"
 #include "source/common/http/utility.h"
