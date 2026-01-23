@@ -21,7 +21,7 @@ public:
   FilterConfig(const envoy::extensions::filters::http::wasm::v3::Wasm& config,
                Server::Configuration::FactoryContext& context);
 
-  FilterConfig(const envoy::extensions::filters::http::wasm::v3::Wasm& config,
+FilterConfig(const envoy::extensions::filters::http::wasm::v3::Wasm& config,
                Server::Configuration::UpstreamFactoryContext& context);
 };
 

@@ -90,6 +90,10 @@ public:
   }
   void setFailStateForTesting(proxy_wasm::FailState fail_state) { failed_ = fail_state; }
 
+#if defined(HIGRESS)
+  LifecycleStats& lifecycleStats() { return lifecycle_stats_handler_.stats(); }
+#endif
+
 protected:
   friend class Context;
 
@@ -152,6 +156,23 @@ private:
 
 using PluginHandleSharedPtr = std::shared_ptr<PluginHandle>;
 
+#if defined(HIGRESS)
+class PluginHandleSharedPtrThreadLocal : public ThreadLocal::ThreadLocalObject,
+                                         public Logger::Loggable<Logger::Id::wasm> {
+public:
+  PluginHandleSharedPtr handle{};
+  MonotonicTime last_load{};
+
+  PluginHandleSharedPtrThreadLocal(PluginHandleSharedPtr h, MonotonicTime t = {})
+      : handle(std::move(h)), last_load(t) {}
+  PluginHandleSharedPtrThreadLocal() = default;
+
+  bool recover();
+
+private:
+  MonotonicTime last_recover_time_;
+};
+#else
 class PluginHandleSharedPtrThreadLocal : public ThreadLocal::ThreadLocalObject {
 public:
   PluginHandleSharedPtr handle{};
@@ -161,6 +182,7 @@ public:
       : handle(std::move(h)), last_load(t) {}
   PluginHandleSharedPtrThreadLocal() = default;
 };
+#endif
 
 using CreateWasmCallback = std::function<void(WasmHandleSharedPtr)>;
 
