@@ -1920,7 +1920,7 @@ TEST_P(WasmHttpFilterTest, GetRouteName) {
   filter().setDecoderFilterCallbacks(decoder_callbacks);
   std::shared_ptr<Router::MockRoute> route{new NiceMock<Router::MockRoute>()};
   std::string route_name = "my_route";
-  EXPECT_CALL(route->route_entry_, routeName()).WillRepeatedly(ReturnRef(route_name));
+  EXPECT_CALL(*route, routeName()).WillRepeatedly(ReturnRef(route_name));
   EXPECT_CALL(decoder_callbacks, route()).WillRepeatedly(Return(route));
   EXPECT_CALL(filter(), log_(spdlog::level::info, Eq(absl::string_view("route name is my_route"))));
   Http::TestRequestHeaderMapImpl request_headers{};

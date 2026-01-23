@@ -187,12 +187,12 @@ Wasm::~Wasm() {
 
 #if defined(HIGRESS)
 bool PluginHandleSharedPtrThreadLocal::recover() {
-  if (handle_ == nullptr || handle_->wasmHandle() == nullptr ||
-      handle_->wasmHandle()->wasm() == nullptr) {
+  if (handle == nullptr || handle->wasmHandle() == nullptr ||
+      handle->wasmHandle()->wasm() == nullptr) {
     ENVOY_LOG(warn, "wasm has not been initialized");
     return false;
   }
-  auto& dispatcher = handle_->wasmHandle()->wasm()->dispatcher();
+  auto& dispatcher = handle->wasmHandle()->wasm()->dispatcher();
   auto now = dispatcher.timeSource().monotonicTime() + cache_time_offset_for_testing;
   if (now - last_recover_time_ < std::chrono::seconds(MIN_RECOVER_INTERVAL_SECONDS)) {
     ENVOY_LOG(debug, "recover interval has not been reached");
@@ -201,9 +201,9 @@ bool PluginHandleSharedPtrThreadLocal::recover() {
   // Even if recovery fails, it will be retried after the interval
   last_recover_time_ = now;
   std::shared_ptr<PluginHandleBase> new_handle;
-  if (handle_->doRecover(new_handle)) {
-    handle_ = std::static_pointer_cast<PluginHandle>(new_handle);
-    handle_->wasmHandle()->wasm()->lifecycleStats().recover_total_.inc();
+  if (handle->rebuild(new_handle)) {
+    handle = std::static_pointer_cast<PluginHandle>(new_handle);
+    handle->wasmHandle()->wasm()->lifecycleStats().recover_total_.inc();
     ENVOY_LOG(info, "wasm vm recover from crash success");
     return true;
   }

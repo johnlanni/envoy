@@ -47,10 +47,19 @@ public:
             config.vm_config().runtime(),
             THROW_OR_RETURN_VALUE(MessageUtil::anyToBytes(config.configuration()), std::string),
             config.fail_open(), createPluginKey(config, direction, listener_metadata)),
-        local_info_(local_info), wasm_config_(std::make_unique<WasmConfig>(config)) {}
+        local_info_(local_info), wasm_config_(std::make_unique<WasmConfig>(config))
+#if defined(HIGRESS)
+        , direction_(direction), listener_metadata_(listener_metadata)
+#endif
+        {}
 
   const LocalInfo::LocalInfo& localInfo() { return local_info_; }
   WasmConfig& wasmConfig() { return *wasm_config_; }
+
+#if defined(HIGRESS)
+  envoy::config::core::v3::TrafficDirection direction() const { return direction_; }
+  const envoy::config::core::v3::Metadata* listenerMetadata() const { return listener_metadata_; }
+#endif
 
 private:
   static std::string createPluginKey(const envoy::extensions::wasm::v3::PluginConfig& config,
@@ -63,6 +72,10 @@ private:
 private:
   const LocalInfo::LocalInfo& local_info_;
   WasmConfigPtr wasm_config_;
+#if defined(HIGRESS)
+  envoy::config::core::v3::TrafficDirection direction_;
+  const envoy::config::core::v3::Metadata* listener_metadata_;
+#endif
 };
 
 using PluginSharedPtr = std::shared_ptr<Plugin>;

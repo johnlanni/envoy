@@ -157,7 +157,7 @@ public:
 #if defined(HIGRESS)
   template <typename TestFilter> void doRecover() {
     std::shared_ptr<proxy_wasm::PluginHandleBase> new_handle;
-    if (WasmTestBase<Base>::plugin_handle_->doRecover(new_handle)) {
+    if (WasmTestBase<Base>::plugin_handle_->rebuild(new_handle)) {
       WasmTestBase<Base>::plugin_handle_ = std::static_pointer_cast<PluginHandle>(new_handle);
       WasmTestBase<Base>::wasm_ = WasmTestBase<Base>::plugin_handle_->wasmHandle();
       WasmTestBase<Base>::wasm_->wasm()->lifecycleStats().recover_total_.inc();

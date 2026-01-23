@@ -472,7 +472,21 @@ WasmResult serializeValue(Filters::Common::Expr::CelValue value, std::string* re
   return WasmResult::SerializationFailure;
 }
 
+#if defined(HIGRESS)
+#define PROPERTY_TOKENS(_f)                                                                        \
+  _f(NODE) _f(LISTENER_DIRECTION) _f(LISTENER_METADATA) _f(CLUSTER_NAME) _f(CLUSTER_METADATA)      \
+      _f(ROUTE_NAME) _f(ROUTE_METADATA) _f(PLUGIN_NAME) _f(UPSTREAM_HOST_METADATA)                 \
+          _f(PLUGIN_ROOT_ID) _f(PLUGIN_VM_ID) _f(CONNECTION_ID)
+
+Upstream::HostDescriptionConstSharedPtr getHost(const StreamInfo::StreamInfo* info) {
+  if (info && info->upstreamInfo() && info->upstreamInfo().value().get().upstreamHost()) {
+    return info->upstreamInfo().value().get().upstreamHost();
+  }
+  return nullptr;
+}
+#else
 #define PROPERTY_TOKENS(_f) _f(PLUGIN_NAME) _f(PLUGIN_ROOT_ID) _f(PLUGIN_VM_ID) _f(CONNECTION_ID)
+#endif
 
 static inline std::string downCase(std::string s) {
   std::transform(s.begin(), s.end(), s.begin(), [](unsigned char c) { return std::tolower(c); });
@@ -553,6 +567,7 @@ Context::findValue(absl::string_view name, Protobuf::Arena* arena, bool last) co
     }
     break;
   }
+#if defined(HIGRESS)
   case PropertyToken::NODE:
     if (root_local_info_) {
       return CelProtoWrapper::CreateMessage(&root_local_info_->node(), arena);
@@ -562,7 +577,7 @@ Context::findValue(absl::string_view name, Protobuf::Arena* arena, bool last) co
     break;
   case PropertyToken::LISTENER_DIRECTION:
     if (plugin_) {
-      return CelValue::CreateInt64(plugin()->direction());
+      return CelValue::CreateInt64(static_cast<int64_t>(plugin()->direction()));
     }
     break;
   case PropertyToken::LISTENER_METADATA:
@@ -595,34 +610,23 @@ Context::findValue(absl::string_view name, Protobuf::Arena* arena, bool last) co
     }
     break;
   case PropertyToken::ROUTE_NAME:
-#if defined(HIGRESS)
     if (info && !info->getRouteName().empty()) {
       return CelValue::CreateString(&info->getRouteName());
     }
     if (filter_callbacks) {
       auto route = filter_callbacks->route();
       if (route) {
-        auto route_entry = route->routeEntry();
-        if (route_entry) {
-          return CelValue::CreateString(&route_entry->routeName());
-        }
-        auto dr_entry = route->directResponseEntry();
-        if (dr_entry) {
-          return CelValue::CreateString(&dr_entry->routeName());
-        }
+        // routeName() is on Route, not RouteEntry
+        return CelValue::CreateString(&route->routeName());
       }
     }
-#else
-    if (info) {
-      return CelValue::CreateString(&info->getRouteName());
-    }
-#endif
     break;
   case PropertyToken::ROUTE_METADATA:
     if (info && info->route()) {
       return CelProtoWrapper::CreateMessage(&info->route()->metadata(), arena);
     }
     break;
+#endif
   case PropertyToken::PLUGIN_NAME:
     if (plugin_) {
       return CelValue::CreateStringView(plugin()->name_);
@@ -1082,8 +1086,16 @@ WasmResult Context::redisInit(std::string_view cluster, std::string_view usernam
     return WasmResult::BadArgument;
   }
 
+  // Convert QueryParamsMulti to std::map<std::string, std::string>
+  auto query_params_multi = Http::Utility::QueryParamsMulti::parseQueryString(cluster);
+  std::map<std::string, std::string> params;
+  for (const auto& [key, values] : query_params_multi.data()) {
+    if (!values.empty()) {
+      params[key] = values[0];
+    }
+  }
   Redis::AsyncClientConfig config(std::string(username), std::string(password),
-                                  timeout_milliseconds, Http::Utility::parseQueryString(cluster));
+                                  timeout_milliseconds, std::move(params));
   thread_local_cluster->redisAsyncClient().initialize(config);
 
   return WasmResult::Ok;
