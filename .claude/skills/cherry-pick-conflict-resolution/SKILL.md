@@ -222,7 +222,7 @@ Phase 1: 探测 → Phase 2: 文档生成
 startProxy  # 或其他代理命令
 
 # 执行编译
-bazel build --config=clang -c opt <targets>
+bazel build --config=clang <targets>
 ```
 
 #### 7.3 处理编译错误
@@ -304,7 +304,7 @@ test/mocks/<module>/mocks.cc
 **步骤 1**: 先编译所有测试目标（检查编译错误）
 ```bash
 # 编译所有被修改的测试
-bazel build --config=clang -c opt \
+bazel build --config=clang \
   //test/common/<module1>:<test1> \
   //test/common/<module2>:<test2> \
   ...
@@ -313,10 +313,10 @@ bazel build --config=clang -c opt \
 **步骤 2**: 运行测试
 ```bash
 # 运行相关测试
-bazel test --config=clang -c opt <test_targets>
+bazel test --config=clang <test_targets>
 
 # 例如
-bazel test --config=clang -c opt \
+bazel test --config=clang \
   //test/common/<module1>:<test1> \
   //test/common/<module2>:<test2>
 ```
