@@ -31,10 +31,12 @@ public:
   // behaviors.
   explicit InternalActiveRedirectPolicyImpl(
       const envoy::config::route::v3::InternalActiveRedirectPolicy& policy_config,
-      ProtobufMessage::ValidationVisitor& validator, absl::string_view current_route_name);
+      ProtobufMessage::ValidationVisitor& validator, absl::string_view current_route_name,
+      Regex::Engine& regex_engine);
   explicit InternalActiveRedirectPolicyImpl(
       const envoy::config::route::v3::InternalActiveRedirectPolicy::RedirectPolicy& policy_config,
-      ProtobufMessage::ValidationVisitor& validator, absl::string_view current_route_name);
+      ProtobufMessage::ValidationVisitor& validator, absl::string_view current_route_name,
+      Regex::Engine& regex_engine);
   // Default constructor that disables internal redirect.
   InternalActiveRedirectPolicyImpl() = default;
 
@@ -95,7 +97,8 @@ public:
   // behaviors.
   explicit InternalActiveRedirectPoliciesImpl(
       const envoy::config::route::v3::InternalActiveRedirectPolicy& policy_config,
-      ProtobufMessage::ValidationVisitor& validator, absl::string_view current_route_name);
+      ProtobufMessage::ValidationVisitor& validator, absl::string_view current_route_name,
+      Regex::Engine& regex_engine);
   // Default constructor that disables internal redirect.
   InternalActiveRedirectPoliciesImpl();
 

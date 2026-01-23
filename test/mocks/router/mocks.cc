@@ -194,6 +194,10 @@ MockRoute::MockRoute() {
   ON_CALL(*this, pathMatcher()).WillByDefault(ReturnRef(route_entry_.path_matcher_));
   ON_CALL(*this, pathRewriter()).WillByDefault(ReturnRef(route_entry_.path_rewriter_));
   ON_CALL(*this, routeStatsContext()).WillByDefault(Return(RouteStatsContextOptRef()));
+#if defined(HIGRESS)
+  ON_CALL(*this, internalActiveRedirectPolicy())
+      .WillByDefault(ReturnRef(internal_active_redirect_policy_));
+#endif
 }
 MockRoute::~MockRoute() = default;
 

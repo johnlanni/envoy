@@ -12,7 +12,6 @@ envoy_cc_library(
     name = "active_redirect_policy_lib",
     srcs = ["active_redirect_policy_impl.cc"],
     hdrs = ["active_redirect_policy_impl.h"],
-    external_deps = ["abseil_optional"],
     visibility = ["//visibility:public"],
     deps = [
         "//contrib/envoy/http:active_redirect_policy_interface",

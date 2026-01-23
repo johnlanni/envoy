@@ -14,17 +14,23 @@ namespace Router {
 
 InternalActiveRedirectPolicyImpl::InternalActiveRedirectPolicyImpl(
     const envoy::config::route::v3::InternalActiveRedirectPolicy& policy_config,
-    ProtobufMessage::ValidationVisitor& validator, absl::string_view current_route_name)
+    ProtobufMessage::ValidationVisitor& validator, absl::string_view current_route_name,
+    Regex::Engine& regex_engine)
     : current_route_name_(current_route_name),
       redirect_response_codes_(buildRedirectResponseCodes(policy_config)),
       max_internal_redirects_(
           PROTOBUF_GET_WRAPPED_OR_DEFAULT(policy_config, max_internal_redirects, 1)),
       enabled_(true), allow_cross_scheme_redirect_(policy_config.allow_cross_scheme_redirect()),
       redirect_url_(policy_config.redirect_url()),
-      request_headers_parser_(HeaderParser::configure(policy_config.request_headers_to_add())),
+      request_headers_parser_(
+          THROW_OR_RETURN_VALUE(HeaderParser::configure(policy_config.request_headers_to_add()),
+                                HeaderParserPtr)),
       redirect_url_rewrite_regex_(
           policy_config.has_redirect_url_rewrite_regex()
-              ? Regex::Utility::parseRegex(policy_config.redirect_url_rewrite_regex().pattern())
+              ? THROW_OR_RETURN_VALUE(
+                    Regex::Utility::parseRegex(
+                        policy_config.redirect_url_rewrite_regex().pattern(), regex_engine),
+                    Regex::CompiledMatcherPtr)
               : nullptr),
       redirect_url_rewrite_regex_substitution_(
           policy_config.has_redirect_url_rewrite_regex()
@@ -37,24 +43,31 @@ InternalActiveRedirectPolicyImpl::InternalActiveRedirectPolicyImpl(
     auto& factory =
         Envoy::Config::Utility::getAndCheckFactory<InternalRedirectPredicateFactory>(predicate);
     auto config = factory.createEmptyConfigProto();
-    Envoy::Config::Utility::translateOpaqueConfig(predicate.typed_config(), validator, *config);
+    THROW_IF_NOT_OK(
+        Envoy::Config::Utility::translateOpaqueConfig(predicate.typed_config(), validator, *config));
     predicate_factories_.emplace_back(&factory, std::move(config));
   }
 }
 
 InternalActiveRedirectPolicyImpl::InternalActiveRedirectPolicyImpl(
     const envoy::config::route::v3::InternalActiveRedirectPolicy::RedirectPolicy& policy_config,
-    ProtobufMessage::ValidationVisitor& validator, absl::string_view current_route_name)
+    ProtobufMessage::ValidationVisitor& validator, absl::string_view current_route_name,
+    Regex::Engine& regex_engine)
     : current_route_name_(current_route_name),
       redirect_response_codes_(buildRedirectResponseCodes(policy_config)),
       max_internal_redirects_(
           PROTOBUF_GET_WRAPPED_OR_DEFAULT(policy_config, max_internal_redirects, 1)),
       enabled_(true), allow_cross_scheme_redirect_(policy_config.allow_cross_scheme_redirect()),
       redirect_url_(policy_config.redirect_url()),
-      request_headers_parser_(HeaderParser::configure(policy_config.request_headers_to_add())),
+      request_headers_parser_(
+          THROW_OR_RETURN_VALUE(HeaderParser::configure(policy_config.request_headers_to_add()),
+                                HeaderParserPtr)),
       redirect_url_rewrite_regex_(
           policy_config.has_redirect_url_rewrite_regex()
-              ? Regex::Utility::parseRegex(policy_config.redirect_url_rewrite_regex().pattern())
+              ? THROW_OR_RETURN_VALUE(
+                    Regex::Utility::parseRegex(
+                        policy_config.redirect_url_rewrite_regex().pattern(), regex_engine),
+                    Regex::CompiledMatcherPtr)
               : nullptr),
       redirect_url_rewrite_regex_substitution_(
           policy_config.has_redirect_url_rewrite_regex()
@@ -65,7 +78,8 @@ InternalActiveRedirectPolicyImpl::InternalActiveRedirectPolicyImpl(
     auto& factory =
         Envoy::Config::Utility::getAndCheckFactory<InternalRedirectPredicateFactory>(predicate);
     auto config = factory.createEmptyConfigProto();
-    Envoy::Config::Utility::translateOpaqueConfig(predicate.typed_config(), validator, *config);
+    THROW_IF_NOT_OK(
+        Envoy::Config::Utility::translateOpaqueConfig(predicate.typed_config(), validator, *config));
     predicate_factories_.emplace_back(&factory, std::move(config));
   }
 }
@@ -147,18 +161,19 @@ bool InternalActiveRedirectPolicyImpl::forcedUseOriginalHost() const {
 
 InternalActiveRedirectPoliciesImpl::InternalActiveRedirectPoliciesImpl(
     const envoy::config::route::v3::InternalActiveRedirectPolicy& policy_config,
-    ProtobufMessage::ValidationVisitor& validator, absl::string_view current_route_name) {
+    ProtobufMessage::ValidationVisitor& validator, absl::string_view current_route_name,
+    Regex::Engine& regex_engine) {
   if (policy_config.policies().empty() && !policy_config.redirect_response_codes().empty()) {
     ENVOY_LOG(warn, "Please configure the redirection policy using the Policies field, the old "
                     "configuration will be deprecated");
-    auto policy = std::make_unique<InternalActiveRedirectPolicyImpl>(policy_config, validator,
-                                                                     current_route_name);
+    auto policy = std::make_unique<InternalActiveRedirectPolicyImpl>(
+        policy_config, validator, current_route_name, regex_engine);
     policies_.emplace_back(std::move(policy));
   }
 
   for (const auto& policy : policy_config.policies()) {
-    auto policy_impl =
-        std::make_unique<InternalActiveRedirectPolicyImpl>(policy, validator, current_route_name);
+    auto policy_impl = std::make_unique<InternalActiveRedirectPolicyImpl>(
+        policy, validator, current_route_name, regex_engine);
     policies_.emplace_back(std::move(policy_impl));
   }
 

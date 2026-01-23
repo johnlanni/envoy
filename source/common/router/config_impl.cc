@@ -464,8 +464,8 @@ RouteEntryImplBase::RouteEntryImplBase(const CommonVirtualHostSharedPtr& vhost,
 #else
       route_tracing_(parseRouteTracing(route)), route_name_(route.name()),
       time_source_(factory_context.mainThreadDispatcher().timeSource()),
-      internal_active_redirect_policy_(
-          buildActiveInternalRedirectPolicy(route.route(), validator, route.name())),
+      internal_active_redirect_policy_(buildActiveInternalRedirectPolicy(
+          route.route(), validator, route.name(), factory_context.regexEngine())),
 #endif
       per_request_buffer_limit_(PROTOBUF_GET_WRAPPED_OR_DEFAULT(
           route, per_request_buffer_limit_bytes, std::numeric_limits<uint32_t>::max())),
@@ -1115,10 +1115,12 @@ RouteEntryImplBase::buildInternalRedirectPolicy(
 std::unique_ptr<InternalActiveRedirectPoliciesImpl>
 RouteEntryImplBase::buildActiveInternalRedirectPolicy(
     const envoy::config::route::v3::RouteAction& route_config,
-    ProtobufMessage::ValidationVisitor& validator, absl::string_view current_route_name) const {
+    ProtobufMessage::ValidationVisitor& validator, absl::string_view current_route_name,
+    Regex::Engine& regex_engine) const {
   if (route_config.has_internal_active_redirect_policy()) {
     return std::make_unique<InternalActiveRedirectPoliciesImpl>(
-        route_config.internal_active_redirect_policy(), validator, current_route_name);
+        route_config.internal_active_redirect_policy(), validator, current_route_name,
+        regex_engine);
   }
   envoy::config::route::v3::InternalActiveRedirectPolicy policy_config;
   switch (route_config.internal_redirect_action()) {
@@ -1133,7 +1135,7 @@ RouteEntryImplBase::buildActiveInternalRedirectPolicy(
     *policy_config.mutable_max_internal_redirects() = route_config.max_internal_redirects();
   }
   return std::make_unique<InternalActiveRedirectPoliciesImpl>(policy_config, validator,
-                                                              current_route_name);
+                                                              current_route_name, regex_engine);
 }
 #endif
 

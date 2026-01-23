@@ -608,6 +608,9 @@ public:
   MOCK_METHOD(bool, includeAttemptCountInRequest, (), (const));
   MOCK_METHOD(bool, includeAttemptCountInResponse, (), (const));
   MOCK_METHOD(const ConnectConfigOptRef, connectConfig, (), (const));
+#if defined(HIGRESS)
+  MOCK_METHOD(const InternalActiveRedirectPolicy&, internalActiveRedirectPolicy, (), (const));
+#endif
   MOCK_METHOD(const UpgradeMap&, upgradeMap, (), (const));
   MOCK_METHOD(const EarlyDataPolicy&, earlyDataPolicy, (), (const));
   MOCK_METHOD(const RouteStatsContextOptRef, routeStatsContext, (), (const));
@@ -624,6 +627,9 @@ public:
       std::make_shared<testing::NiceMock<MockVirtualHost>>();
   // Same with virtual_host_ but this could be returned as VirtualHostConstSharedPtr reference.
   VirtualHostConstSharedPtr virtual_host_copy_ = virtual_host_;
+#if defined(HIGRESS)
+  testing::NiceMock<MockInternalActiveRedirectPolicy> internal_active_redirect_policy_;
+#endif
 };
 
 class MockConfig : public Config {

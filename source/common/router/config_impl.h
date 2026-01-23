@@ -735,10 +735,6 @@ public:
     }
     return DefaultInternalActiveRedirectPolicy::get();
   }
-
-  RouteConstSharedPtr clone(const std::string& name) const {
-    return std::make_shared<DynamicRouteEntry>(this, shared_from_this(), name);
-  }
 #endif
 
   const PathMatcherSharedPtr& pathMatcher() const override { return path_matcher_; }
@@ -961,7 +957,8 @@ private:
   std::unique_ptr<InternalActiveRedirectPoliciesImpl>
   buildActiveInternalRedirectPolicy(const envoy::config::route::v3::RouteAction& route_config,
                                     ProtobufMessage::ValidationVisitor& validator,
-                                    absl::string_view current_route_name) const;
+                                    absl::string_view current_route_name,
+                                    Regex::Engine& regex_engine) const;
 #endif
 
   // Default timeout is 15s if nothing is specified in the route config.

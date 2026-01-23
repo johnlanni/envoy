@@ -28,6 +28,7 @@
 #include "source/common/http/headers.h"
 #include "source/common/http/message_impl.h"
 #include "source/common/http/utility.h"
+#include "source/common/http/path_utility.h"
 #include "source/common/network/transport_socket_options_impl.h"
 #include "source/common/network/upstream_server_name.h"
 #include "source/common/network/upstream_socket_options_filter_state.h"
@@ -2334,8 +2335,7 @@ bool Filter::convertRequestHeadersForInternalActiveRedirect(
     return false;
   }
 
-  const auto& route_name = route->directResponseEntry() ? route->directResponseEntry()->routeName()
-                                                        : route->routeEntry()->routeName();
+  const auto& route_name = route->routeName();
   for (const auto& predicate : policy.predicates()) {
     if (!predicate->acceptTargetRoute(*filter_state, route_name, !scheme_is_http,
                                       !target_is_http)) {
