@@ -1,0 +1,44 @@
+commit 8679c87dbc0a313a2d3b782d3a75d3b0a514828a
+Author: jingze <daijingze.djz@alibaba-inc.com>
+Date:   Mon Jan 19 17:56:47 2026 +0800
+
+    Apply patch: 015-mcp-sse-stateful-session-contrib.patch
+    
+    Change-Id: Iaceff4a755bb8e7121d3f5ecd02b92b490c2e98d
+    Co-developed-by: Cursor <noreply@cursor.com>
+
+ CODEOWNERS                                         |   1 +
+ api/BUILD                                          |   2 +
+ .../envoy/extensions/filters/http/mcp_proxy/BUILD  |   0
+ .../http/mcp_sse_stateful_session/v3alpha/BUILD    |  12 +
+ .../v3alpha/mcp_sse_stateful_session.proto         |  46 ++
+ .../envelope/v3alpha/BUILD                         |   9 +
+ .../envelope/v3alpha/envelope.proto                |  75 +++
+ api/versioning/BUILD                               |   2 +
+ contrib/contrib_build_config.bzl                   |   7 +
+ contrib/extensions_metadata.yaml                   |  15 +
+ .../filters/http/source/BUILD                      |  44 ++
+ .../filters/http/source/config.cc                  |  36 ++
+ .../filters/http/source/config.h                   |  36 ++
+ .../http/source/mcp_sse_stateful_session.cc        | 113 +++++
+ .../filters/http/source/mcp_sse_stateful_session.h |  88 ++++
+ .../filters/http/test/BUILD                        |  52 +++
+ .../filters/http/test/config_test.cc               | 104 +++++
+ .../filters/http/test/mocks/BUILD                  |  18 +
+ .../http/test/mocks/mcp_sse_stateful_session.cc    |  21 +
+ .../http/test/mocks/mcp_sse_stateful_session.h     |  46 ++
+ .../http/test/stateful_session_integration_test.cc | 509 +++++++++++++++++++++
+ .../filters/http/test/stateful_session_test.cc     | 268 +++++++++++
+ contrib/mcp_sse_stateful_session/http/source/BUILD |  40 ++
+ .../mcp_sse_stateful_session/http/source/config.cc |  30 ++
+ .../mcp_sse_stateful_session/http/source/config.h  |  33 ++
+ .../http/source/envelope.cc                        | 198 ++++++++
+ .../http/source/envelope.h                         |  77 ++++
+ .../http/test/config_test.cc                       |  36 ++
+ .../http/test/envelope_test.cc                     | 382 ++++++++++++++++
+ envoy/http/BUILD                                   |  11 +
+ envoy/http/mcp_sse_stateful_session.h              |  97 ++++
+ source/extensions/common/wasm/context.cc           |  47 ++
+ test/mocks/upstream/host.h                         |   5 +
+ tools/extensions/extensions_schema.yaml            |   1 +
+ 34 files changed, 2461 insertions(+)
