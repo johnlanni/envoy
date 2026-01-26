@@ -291,7 +291,7 @@ private:
     void recreateStream(StreamInfo::FilterStateSharedPtr filter_state) override;
 #if defined(HIGRESS)
     void recreateStream(StreamInfo::FilterStateSharedPtr filter_state,
-                        bool backup_for_replace);
+                        bool backup_for_replace) override;
 #endif
     void resetStream(Http::StreamResetReason reset_reason = Http::StreamResetReason::LocalReset,
                      absl::string_view transport_failure_reason = "") override;
