@@ -1,0 +1,12 @@
+commit 1ae04057998a18e80b8b4ba78ebe6597fd34c706
+Author: jingze <daijingze.djz@alibaba-inc.com>
+Date:   Mon Jan 19 17:40:10 2026 +0800
+
+    Apply patch: 003-forbid-access-to-admin-interface.patch
+    
+    Change-Id: I6a262c5aa98912b925da92944343c0a79dc50262
+    Co-developed-by: Cursor <noreply@cursor.com>
+
+ source/common/http/headers.h |  1 +
+ source/server/admin/admin.cc | 10 ++++++++++
+ 2 files changed, 11 insertions(+)
