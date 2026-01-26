@@ -1,0 +1,11 @@
+api/envoy/api/v2/core/health_check.proto
+api/envoy/config/core/v3/health_check.proto
+envoy/upstream/upstream.h
+source/common/upstream/upstream_impl.h
+source/extensions/common/wasm/context.cc
+source/extensions/common/wasm/context.h
+source/extensions/health_checkers/common/health_checker_base_impl.cc
+source/extensions/health_checkers/common/health_checker_base_impl.h
+source/extensions/health_checkers/http/health_checker_impl.cc
+test/common/upstream/health_checker_impl_test.cc
+test/mocks/upstream/host.h
