@@ -1,0 +1,18 @@
+commit d0c21cf32619a134d356f75e116e0c4a8190b167
+Author: jingze <daijingze.djz@alibaba-inc.com>
+Date:   Mon Jan 19 17:44:54 2026 +0800
+
+    Apply patch: 007-optimize-custom-response-filter-for-ai-fallback.patch
+    
+    Change-Id: I8ed8005898e78888a02b6802f9a453741b5fc180
+    Co-developed-by: Cursor <noreply@cursor.com>
+
+ .../redirect_policy/v3/redirect_policy.proto       |  2 ++
+ source/common/http/conn_manager_impl.cc            |  7 ++++
+ source/common/http/conn_manager_utility.cc         |  3 ++
+ source/common/http/headers.h                       |  5 +++
+ .../http/custom_response/custom_response_filter.cc | 26 +++++---------
+ .../http/custom_response/custom_response_filter.h  |  3 --
+ .../redirect_policy/redirect_policy.cc             | 40 ++++++++++++++++------
+ .../redirect_policy/redirect_policy.h              |  1 +
+ 8 files changed, 56 insertions(+), 31 deletions(-)

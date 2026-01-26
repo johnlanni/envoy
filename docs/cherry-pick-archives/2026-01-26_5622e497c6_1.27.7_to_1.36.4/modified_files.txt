@@ -1,0 +1,8 @@
+api/envoy/extensions/http/custom_response/redirect_policy/v3/redirect_policy.proto
+source/common/http/conn_manager_impl.cc
+source/common/http/conn_manager_utility.cc
+source/common/http/headers.h
+source/extensions/filters/http/custom_response/custom_response_filter.cc
+source/extensions/filters/http/custom_response/custom_response_filter.h
+source/extensions/http/custom_response/redirect_policy/redirect_policy.cc
+source/extensions/http/custom_response/redirect_policy/redirect_policy.h
