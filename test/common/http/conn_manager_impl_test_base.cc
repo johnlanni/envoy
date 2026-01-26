@@ -149,6 +149,9 @@ public:
   std::chrono::seconds keepaliveHeaderTimeout() const override {
     return parent_.keepaliveHeaderTimeout();
   }
+  bool retryOtherScopeWhenNotFound() const override {
+    return parent_.retryOtherScopeWhenNotFound();
+  }
 #endif
 
 private:

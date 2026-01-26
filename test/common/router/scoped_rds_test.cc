@@ -316,11 +316,11 @@ scoped_routes:
   auto route_config = provider->config<ScopedConfigImpl>()->getRouteConfig(
       scope_key_builder.get(), headers, &stream_info, recompute);
   EXPECT_EQ(route_config->name(), "foo");
-  EXPECT_EQ(route_config->route(headers, stream_info, 0), nullptr);
+  EXPECT_EQ(route_config->route(headers, stream_info, 0).route, nullptr);
   route_config = provider->config<ScopedConfigImpl>()->getRouteConfig(
       scope_key_builder.get(), headers, &stream_info, recompute);
   EXPECT_EQ(route_config->name(), "foo2");
-  EXPECT_NE(route_config->route(headers, stream_info, 0), nullptr);
+  EXPECT_NE(route_config->route(headers, stream_info, 0).route, nullptr);
 }
 #endif
 
