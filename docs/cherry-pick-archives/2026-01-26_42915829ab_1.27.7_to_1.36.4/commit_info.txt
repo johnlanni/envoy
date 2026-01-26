@@ -1,0 +1,31 @@
+commit 1d5de01f9e230795a7c2852b0217b8ea15814218
+Author: jingze <daijingze.djz@alibaba-inc.com>
+Date:   Mon Jan 19 17:45:03 2026 +0800
+
+    Apply patch: 008-optimize-srds-for-route-fallback.patch
+    
+    Change-Id: Ia25074eb63b2b337cb51e3f6ca40c1a674c09e5b
+    Co-developed-by: Cursor <noreply@cursor.com>
+
+ CHERRY_PICK_CONFLICT_RESOLUTION.md                 | 280 +++++++++++++++++++++
+ TEST_FIX_PLAN.md                                   |  70 ++++++
+ .../v3/http_connection_manager.proto               |   2 +
+ envoy/router/scopes.h                              |  12 +-
+ source/common/http/conn_manager_config.h           |   5 +
+ source/common/http/conn_manager_impl.cc            |  29 ++-
+ source/common/http/conn_manager_impl.h             |   3 +
+ source/common/router/scoped_config_impl.cc         |  34 ++-
+ source/common/router/scoped_config_impl.h          |   9 +
+ .../network/http_connection_manager/config.cc      |   2 +
+ .../network/http_connection_manager/config.h       |   4 +
+ source/server/admin/admin.cc                       |   4 +-
+ source/server/admin/admin.h                        |   1 +
+ test/common/http/conn_manager_impl_fuzz_test.cc    |   2 +
+ test/common/http/conn_manager_impl_test_3.cc       |  22 +-
+ test/common/http/conn_manager_impl_test_base.cc    |   3 +
+ test/common/http/conn_manager_impl_test_base.h     |   2 +
+ test/common/router/scoped_rds_test.cc              |  71 ++++++
+ test/mocks/http/mocks.h                            |   1 +
+ test/mocks/router/mocks.cc                         |   1 +
+ test/mocks/router/mocks.h                          |   4 +
+ 21 files changed, 535 insertions(+), 26 deletions(-)
