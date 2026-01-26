@@ -1,0 +1,6 @@
+source/extensions/common/wasm/BUILD
+source/extensions/common/wasm/context.cc
+source/extensions/common/wasm/context.h
+source/extensions/common/wasm/ext/BUILD
+source/extensions/common/wasm/ext/inject_encoded_data.proto
+source/extensions/common/wasm/foreign.cc

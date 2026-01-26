@@ -1,0 +1,16 @@
+commit 2e629aa484abf59135d47e31a8ea03a0b745fba1
+Author: jingze <daijingze.djz@alibaba-inc.com>
+Date:   Mon Jan 19 17:48:40 2026 +0800
+
+    Apply patch: 011-wasm-abi-support-injectencodeonheader.patch
+    
+    Change-Id: I0c24be3a26f5339e29ac4a1ba76426336ae7556b
+    Co-developed-by: Cursor <noreply@cursor.com>
+
+ source/extensions/common/wasm/BUILD                |  1 +
+ source/extensions/common/wasm/context.cc           | 23 ++++++++++--
+ source/extensions/common/wasm/context.h            |  1 +
+ source/extensions/common/wasm/ext/BUILD            | 18 ++++++++++
+ .../common/wasm/ext/inject_encoded_data.proto      |  8 +++++
+ source/extensions/common/wasm/foreign.cc           | 41 ++++++++++++++++++++++
+ 6 files changed, 89 insertions(+), 3 deletions(-)
