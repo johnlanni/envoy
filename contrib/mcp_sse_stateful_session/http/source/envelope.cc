@@ -186,8 +186,15 @@ EnvelopeSessionStateFactory::parseAddress(Envoy::Http::RequestHeaderMap& headers
   const auto path_str = path->value().getStringView();
   auto query_start = path_str.find('?');
   std::string new_path;
-  new_path.reserve(query_start + 1 + new_query.length());
-  absl::StrAppend(&new_path, path_str.substr(0, query_start + 1), new_query);
+  if (query_start == absl::string_view::npos) {
+    // No query string found, append new query with '?'
+    new_path.reserve(path_str.length() + 1 + new_query.length());
+    absl::StrAppend(&new_path, path_str, "?", new_query);
+  } else {
+    // Query string exists, replace it
+    new_path.reserve(query_start + 1 + new_query.length());
+    absl::StrAppend(&new_path, path_str.substr(0, query_start + 1), new_query);
+  }
 
   headers.setPath(new_path);
   ENVOY_LOG(debug, "Restored session ID: {}, host: {}", original_session_id, host_address);
