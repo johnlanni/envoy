@@ -105,6 +105,9 @@ protected:
 
   const bool always_log_health_check_failures_;
   const bool always_log_health_check_success_;
+#if defined(HIGRESS)
+  const bool store_metrics_;
+#endif
   const Cluster& cluster_;
   Event::Dispatcher& dispatcher_;
   const std::chrono::milliseconds timeout_;

@@ -1,0 +1,21 @@
+commit 8318526537ae26e83b1e9b8ccbdfe1684c3f981c
+Author: jingze <daijingze.djz@alibaba-inc.com>
+Date:   Mon Jan 19 17:47:50 2026 +0800
+
+    Apply patch: 010-wasm-abi-support-injectencode-and-control-upstreamhosts.patch
+    
+    Change-Id: Id4d5544654b07ab560da3be4741aa2eec8b6a355
+    Co-developed-by: Cursor <noreply@cursor.com>
+
+ api/envoy/api/v2/core/health_check.proto           |  2 +
+ api/envoy/config/core/v3/health_check.proto        |  2 +
+ envoy/upstream/upstream.h                          | 11 +++++
+ source/common/upstream/upstream_impl.h             | 31 +++++++++++++
+ source/extensions/common/wasm/context.cc           | 54 ++++++++++++++++++++++
+ source/extensions/common/wasm/context.h            |  7 +++
+ .../common/health_checker_base_impl.cc             |  8 +++-
+ .../common/health_checker_base_impl.h              |  3 ++
+ .../health_checkers/http/health_checker_impl.cc    | 12 +++++
+ test/common/upstream/health_checker_impl_test.cc   | 42 +++++++++++++++++
+ test/mocks/upstream/host.h                         | 10 ++++
+ 11 files changed, 180 insertions(+), 2 deletions(-)

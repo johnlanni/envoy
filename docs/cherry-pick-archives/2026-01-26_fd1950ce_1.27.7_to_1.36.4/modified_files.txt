@@ -1,0 +1,5 @@
+source/common/http/conn_manager_config.h
+source/common/http/conn_manager_impl.cc
+source/common/router/scoped_config_impl.cc
+test/common/formatter/substitution_formatter_test.cc
+test/common/http/conn_manager_impl_test_base.cc

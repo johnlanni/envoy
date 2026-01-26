@@ -926,6 +926,7 @@ TEST(SubstitutionFormatterTest, streamInfoFormatter) {
     StreamInfoFormatter downstream_local_port_format("DOWNSTREAM_LOCAL_PORT"),
         downstream_direct_downstream_local_port_format("DOWNSTREAM_DIRECT_LOCAL_PORT");
 
+    StreamInfoFormatter upstream_format("DOWNSTREAM_LOCAL_PORT");
     // Validate for IPv4 address
     auto address = Network::Address::InstanceConstSharedPtr{
         new Network::Address::Ipv4Instance("127.1.2.3", 8443)};

@@ -162,6 +162,13 @@ public:
     disable_active_health_check_ = disable_active_health_check;
   }
 
+#if defined(HIGRESS)
+  std::string getEndpointMetrics() const override { return endpoint_metrics_; }
+  void setEndpointMetrics(absl::string_view endpoint_metrics) override {
+    endpoint_metrics_ = std::string(endpoint_metrics);
+  }
+#endif
+
   MOCK_METHOD(Network::Address::InstanceConstSharedPtr, address, (), (const));
   MOCK_METHOD(SharedConstAddressVector, addressListOrNull, (), (const));
   MOCK_METHOD(Network::Address::InstanceConstSharedPtr, healthCheckAddress, (), (const));
@@ -215,6 +222,9 @@ public:
   MOCK_METHOD(OptRef<HostLbPolicyData>, lbPolicyData, (), (const));
 
   bool disable_active_health_check_ = false;
+#if defined(HIGRESS)
+  std::string endpoint_metrics_;
+#endif
 };
 
 class MockHost : public MockHostLight {

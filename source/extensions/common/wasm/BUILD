@@ -109,6 +109,7 @@ envoy_cc_extension(
         "//source/common/tracing:http_tracer_lib",
         "//source/extensions/common/wasm:remote_async_datasource_lib",
         "//source/extensions/common/wasm/ext:declare_property_cc_proto",
+        "//source/extensions/common/wasm/ext:inject_encoded_data_cc_proto",
         "//source/extensions/common/wasm/ext:envoy_null_vm_wasm_api",
         "//source/extensions/common/wasm/ext:set_envoy_filter_state_cc_proto",
         "//source/extensions/common/wasm/ext:verify_signature_cc_proto",

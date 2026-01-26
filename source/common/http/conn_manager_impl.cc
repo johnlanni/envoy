@@ -84,8 +84,16 @@ bool requestWasConnect(const RequestHeaderMapSharedPtr& headers, Protocol protoc
 ConnectionManagerStats ConnectionManagerImpl::generateStats(const std::string& prefix,
                                                             Stats::Scope& scope) {
   return ConnectionManagerStats(
+#if defined(HIGRESS)
+      {ALL_HTTP_CONN_MAN_STATS(POOL_COUNTER_PREFIX(scope, prefix), POOL_GAUGE_PREFIX(scope, prefix),
+                               POOL_HISTOGRAM_PREFIX(scope, prefix))
+           HIGRESS_EXT_HTTP_CONN_MAN_STATS(POOL_COUNTER_PREFIX(scope, prefix),
+                                           POOL_GAUGE_PREFIX(scope, prefix),
+                                           POOL_HISTOGRAM_PREFIX(scope, prefix))},
+#else
       {ALL_HTTP_CONN_MAN_STATS(POOL_COUNTER_PREFIX(scope, prefix), POOL_GAUGE_PREFIX(scope, prefix),
                                POOL_HISTOGRAM_PREFIX(scope, prefix))},
+#endif
       prefix, scope);
 }
 
@@ -1342,7 +1350,14 @@ void ConnectionManagerImpl::ActiveStream::decodeHeaders(RequestHeaderMapSharedPt
                connection_manager_.config_->scopeKeyBuilder().has_value()) {
       snapped_scoped_routes_config_ =
           connection_manager_.config_->scopedRouteConfigProvider()->config<Router::ScopedConfig>();
+#if defined(HIGRESS)
+      // It is only used to determine whether to remove specific internal headers, but at the cost
+      // of an additional routing calculation. In our scenario, there is no removal of internal
+      // headers, so there is no need to calculate the route here.
+      snapped_route_config_ = std::make_shared<Router::NullConfigImpl>();
+#else
       snapScopedRouteConfig();
+#endif
     }
   } else {
     snapped_route_config_ = connection_manager_.config_->routeConfigProvider()->configCast();
@@ -1648,9 +1663,10 @@ void ConnectionManagerImpl::startDrainSequence() {
 
 void ConnectionManagerImpl::ActiveStream::snapScopedRouteConfig() {
 #if defined(HIGRESS)
+  snapped_scoped_routes_recompute_ = nullptr;
   snapped_route_config_ = snapped_scoped_routes_config_->getRouteConfig(
       connection_manager_.config_->scopeKeyBuilder().ptr(), *request_headers_,
-      &connection()->streamInfo());
+      &connection()->streamInfo(), snapped_scoped_routes_recompute_);
 #else
   // NOTE: if a RDS subscription hasn't got a RouteConfiguration back, a Router::NullConfigImpl is
   // returned, in that case we let it pass.
@@ -1777,6 +1793,26 @@ void ConnectionManagerImpl::ActiveStream::refreshCachedRoute(const Router::Route
                                                   filter_manager_.streamInfo(), stream_id_);
     }
   }
+
+#if defined(HIGRESS)
+  if (connection_manager_.config_->retryOtherScopeWhenNotFound()) {
+    while (route_result.route == nullptr && snapped_scoped_routes_recompute_ != nullptr) {
+      ASSERT(snapped_scoped_routes_config_ != nullptr);
+      snapped_route_config_ = snapped_scoped_routes_config_->getRouteConfig(
+          connection_manager_.config_->scopeKeyBuilder().ptr(), *request_headers_,
+          &connection()->streamInfo(), snapped_scoped_routes_recompute_);
+      if (snapped_route_config_ == nullptr) {
+        break;
+      }
+      route_result = snapped_route_config_->route(cb, *request_headers_, filter_manager_.streamInfo(),
+                                                  stream_id_);
+      bool retry_found = route_result.route != nullptr;
+      ENVOY_STREAM_LOG(debug,
+                       "after the route was not found, search again in other scopes and found:{}",
+                       *this, retry_found);
+    }
+  }
+#endif
 
   setVirtualHostRoute(std::move(route_result));
 }

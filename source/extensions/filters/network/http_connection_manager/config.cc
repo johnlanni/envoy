@@ -590,6 +590,8 @@ HttpConnectionManagerConfig::HttpConnectionManagerConfig(
         srds_factory->createConfigProvider(config, context_.serverFactoryContext(), stats_prefix_,
                                            *scoped_routes_config_provider_manager_);
     scope_key_builder_ = srds_factory->createScopeKeyBuilder(config);
+    retry_other_scope_when_not_found_ = PROTOBUF_GET_WRAPPED_OR_DEFAULT(
+        config.scoped_routes(), retry_other_scope_when_not_found, true);
     break;
   case envoy::extensions::filters::network::http_connection_manager::v3::HttpConnectionManager::
       RouteSpecifierCase::ROUTE_SPECIFIER_NOT_SET:

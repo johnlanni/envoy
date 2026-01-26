@@ -1235,14 +1235,16 @@ TEST_F(HttpConnectionManagerImplTest, TestSessionTrace) {
 
 // SRDS no scope found.
 TEST_F(HttpConnectionManagerImplTest, TestSrdsRouteNotFound) {
+  retry_other_scope_when_not_found_ = false;
   setup(SetupOpts().setUseSrds(true));
   setupFilterChain(1, 0); // Recreate the chain for second stream.
 
 #if defined(HIGRESS)
   EXPECT_CALL(*static_cast<const Router::MockScopedConfig*>(
                   scopedRouteConfigProvider()->config<Router::ScopedConfig>().get()),
-              getRouteConfig(_, _, _))
-      .Times(2)
+              getRouteConfig(_, _, _, _))
+      // HIGRESS skips snapScopedRouteConfig() in decodeHeaders(), only refreshCachedRoute() calls it.
+      .Times(1)
       .WillRepeatedly(Return(nullptr));
 #else
   EXPECT_CALL(*static_cast<const Router::MockScopeKeyBuilder*>(scopeKeyBuilder().ptr()),
@@ -1279,14 +1281,14 @@ TEST_F(HttpConnectionManagerImplTest, TestSrdsRouteNotFound) {
 
 // SRDS updating scopes affects routing.
 TEST_F(HttpConnectionManagerImplTest, TestSrdsUpdate) {
+  retry_other_scope_when_not_found_ = false;
   setup(SetupOpts().setUseSrds(true));
 
 #if defined(HIGRESS)
   EXPECT_CALL(*static_cast<const Router::MockScopedConfig*>(
                   scopedRouteConfigProvider()->config<Router::ScopedConfig>().get()),
-              getRouteConfig(_, _, _))
-      .Times(3)
-      .WillOnce(Return(nullptr))
+              getRouteConfig(_, _, _, _))
+      .Times(2)
       .WillOnce(Return(nullptr))        // refreshCachedRoute first time.
       .WillOnce(Return(route_config_)); // triggered by callbacks_->route(), SRDS now updated.
 #else
@@ -1354,6 +1356,7 @@ TEST_F(HttpConnectionManagerImplTest, TestSrdsUpdate) {
 
 // SRDS Scope header update cause cross-scope reroute.
 TEST_F(HttpConnectionManagerImplTest, TestSrdsCrossScopeReroute) {
+  retry_other_scope_when_not_found_ = false;
   setup(SetupOpts().setUseSrds(true));
 
   std::shared_ptr<Router::MockConfig> route_config1 =
@@ -1369,14 +1372,15 @@ TEST_F(HttpConnectionManagerImplTest, TestSrdsCrossScopeReroute) {
 #if defined(HIGRESS)
   EXPECT_CALL(*static_cast<const Router::MockScopedConfig*>(
                   scopedRouteConfigProvider()->config<Router::ScopedConfig>().get()),
-              getRouteConfig(_, _, _))
-      // 1. Snap scoped route config;
-      // 2. refreshCachedRoute (both in decodeHeaders(headers,end_stream);
-      // 3. then refreshCachedRoute triggered by decoder_filters_[1]->callbacks_->route().
-      .Times(3)
+              getRouteConfig(_, _, _, _))
+      // HIGRESS skips snapScopedRouteConfig() in decodeHeaders(), so only:
+      // 1. refreshCachedRoute in decodeHeaders;
+      // 2. refreshCachedRoute triggered by decoder_filters_[1]->callbacks_->route().
+      .Times(2)
       .WillRepeatedly(Invoke(
           [&](const Router::ScopeKeyBuilder*, const Http::HeaderMap& headers,
-              const StreamInfo::StreamInfo*) -> Router::ConfigConstSharedPtr {
+              const StreamInfo::StreamInfo*,
+              std::function<Router::ScopeKeyPtr()>&) -> Router::ConfigConstSharedPtr {
             auto& test_headers = dynamic_cast<const TestRequestHeaderMapImpl&>(headers);
             if (test_headers.get_("scope_key") == "foo") {
               return route_config1;
@@ -1459,6 +1463,7 @@ TEST_F(HttpConnectionManagerImplTest, TestSrdsCrossScopeReroute) {
 
 // SRDS scoped RouteConfiguration found and route found.
 TEST_F(HttpConnectionManagerImplTest, TestSrdsRouteFound) {
+  retry_other_scope_when_not_found_ = false;
   setup(SetupOpts().setUseSrds(true));
   setupFilterChain(1, 0);
 
@@ -1470,10 +1475,9 @@ TEST_F(HttpConnectionManagerImplTest, TestSrdsRouteFound) {
   EXPECT_CALL(cluster_manager_, getThreadLocalCluster(_)).WillOnce(Return(fake_cluster1.get()));
 #if defined(HIGRESS)
   EXPECT_CALL(*scopedRouteConfigProvider()->config<Router::MockScopedConfig>(),
-              getRouteConfig(_, _, _))
-      // 1. decodeHeaders() snapping route config.
-      // 2. refreshCachedRoute() later in the same decodeHeaders().
-      .Times(2);
+              getRouteConfig(_, _, _, _))
+      // HIGRESS skips snapScopedRouteConfig() in decodeHeaders(), only refreshCachedRoute() calls it.
+      .Times(1);
 #else
   EXPECT_CALL(*static_cast<const Router::MockScopeKeyBuilder*>(scopeKeyBuilder().ptr()),
               computeScopeKey(_))
