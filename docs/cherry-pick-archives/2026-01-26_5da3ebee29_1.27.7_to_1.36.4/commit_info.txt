@@ -1,0 +1,12 @@
+commit 5da3ebee29c7f8c865974052e6f9fa8881a894b4
+Author: jingze <daijingze.djz@alibaba-inc.com>
+Date:   Mon Jan 19 17:39:43 2026 +0800
+
+    Apply patch: 000-9-rsa2048.patch
+    
+    Change-Id: Ib14ee599297cf45a45034447da2ac602437ccb9a
+    Co-developed-by: Cursor <noreply@cursor.com>
+
+ .../extensions/transport_sockets/tls/context_impl.cc  |  2 ++
+ .../transport_sockets/tls/context_impl_test.cc        | 19 +++++++++++++++++++
+ 2 files changed, 21 insertions(+)
