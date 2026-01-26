@@ -1,0 +1,23 @@
+commit fd1950ce5b03178e0c9a40f1be6563eb7cd683e2
+Author: jingze <daijingze.djz@alibaba-inc.com>
+Date:   Mon Jan 19 17:49:06 2026 +0800
+
+    Apply patch: 013-fix-srds-direct-local-address.patch
+    
+    Change-Id: I26c6ec1ab5a36a348809145dbbc7c81962477b26
+    Co-developed-by: Cursor <noreply@cursor.com>
+
+ .../observability/access_log/usage.rst             | 40 ++++++++++++++++++++
+ envoy/network/socket.h                             |  6 +++
+ source/common/http/conn_manager_config.h           | 10 +++++
+ source/common/http/conn_manager_impl.cc            | 16 +++++++-
+ source/common/http/filter_manager.h                |  3 ++
+ source/common/network/socket_impl.h                |  8 +++-
+ source/common/router/scoped_config_impl.cc         |  2 +-
+ source/extensions/filters/http/lua/wrappers.cc     |  7 ++++
+ source/extensions/filters/http/lua/wrappers.h      | 10 ++++-
+ .../formatter/substitution_formatter_test.cc       | 44 +++++++++++++++++++++-
+ test/common/http/conn_manager_impl_test_base.cc    |  9 +++++
+ test/common/router/header_formatter_test.cc        |  3 ++
+ .../filters/http/lua/lua_integration_test.cc       |  9 +++++
+ 13 files changed, 161 insertions(+), 6 deletions(-)
