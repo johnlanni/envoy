@@ -1,0 +1,70 @@
+commit 777c7eff6e70051918f24325403f133229dec849
+Author: jingze <daijingze.djz@alibaba-inc.com>
+Date:   Mon Jan 19 17:39:24 2026 +0800
+
+    Apply patch: 000-7-wasm-trace.patch
+    
+    Change-Id: I2c225176c16a22390a742cc46a2a77bcbfb7746e
+    Co-developed-by: Cursor <noreply@cursor.com>
+
+ envoy/stream_info/stream_info.h              | 15 ++++++++++++++-
+ source/common/stream_info/stream_info_impl.h | 20 +++++++++++++++++++-
+ source/common/tracing/http_tracer_impl.cc    | 10 +++++++++-
+ source/extensions/tracers/common/BUILD       |  1 +
+ test/extensions/common/wasm/context_test.cc  | 22 ++++++++++++++++++++++
+ test/mocks/stream_info/mocks.h               |  6 +++++-
+ 6 files changed, 70 insertions(+), 4 deletions(-)
+commit 4d48d4ef2720bd68e92c51676714a61016c526cc
+Author: jingze <daijingze.djz@alibaba-inc.com>
+Date:   Fri Jan 23 15:08:52 2026 +0800
+
+    Apply patch: 000-8-wasm-custom.patch
+    
+    Change-Id: Ia74532e780943bca4a7ba999a6211a29f55f8ca5
+    Co-developed-by: Cursor <noreply@cursor.com>
+
+ source/extensions/common/wasm/context.cc           | 295 +++++++++++++++++++++
+ source/extensions/common/wasm/context.h            |  48 ++++
+ source/extensions/common/wasm/stats_handler.cc     |  20 ++
+ source/extensions/common/wasm/stats_handler.h      |  37 +++
+ source/extensions/common/wasm/wasm.cc              |  77 +++++-
+ source/extensions/common/wasm/wasm.h               |  22 ++
+ source/extensions/common/wasm/wasm_vm.cc           |   9 +-
+ source/extensions/filters/http/wasm/wasm_filter.h  |   2 +-
+ test/extensions/filters/http/wasm/test_data/BUILD  |   2 +
+ .../filters/http/wasm/test_data/test_cpp.cc        |  64 ++++-
+ .../http/wasm/test_data/test_redis_call_cpp.cc     |  69 +++++
+ .../filters/http/wasm/wasm_filter_test.cc          | 237 +++++++++++++++++
+ test/test_common/wasm_base.h                       |  12 +
+ 13 files changed, 889 insertions(+), 5 deletions(-)
+commit a5e30fc579679884954e8090263d212e9b14dee9
+Author: jingze <daijingze.djz@alibaba-inc.com>
+Date:   Mon Jan 26 10:19:50 2026 +0800
+
+    fix: resolve test failures and API inconsistencies for HIGRESS wasm patches
+    
+    This commit resolves test failures encountered when applying wasm patches 000-7 and 000-8 to Envoy 1.36.4.
+    
+    Changes include:
+    
+    - Update proxy-wasm-cpp-host version to support allow_on_headers_stop_iteration_
+    
+    - Fix condition order in clearRouteCache() to prevent mock call when disabled
+    
+    - Remove duplicate allow_on_headers_stop_iteration_ member in Context
+    
+    - Update test expectations for network wasm config tests
+    
+    - Adjust test data to match HIGRESS conditional compilation
+    
+    - Fix base_wasm_ handling in test infrastructure
+    
+    Change-Id: I9a3f49e74b0a299d58107f88acebe2977e1c629b
+    Co-developed-by: Qoder <noreply@qoder.com>
+
+ bazel/repository_locations.bzl                          | 4 ++--
+ source/extensions/common/wasm/context.h                 | 3 +--
+ test/extensions/filters/http/wasm/test_data/test_cpp.cc | 6 +++++-
+ test/extensions/filters/network/wasm/config_test.cc     | 6 +++---
+ test/test_common/wasm_base.h                            | 5 +++--
+ 5 files changed, 14 insertions(+), 10 deletions(-)

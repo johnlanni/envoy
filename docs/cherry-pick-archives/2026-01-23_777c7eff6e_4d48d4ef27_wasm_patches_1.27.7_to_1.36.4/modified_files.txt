@@ -1,0 +1,5 @@
+bazel/repository_locations.bzl
+source/extensions/common/wasm/context.h
+test/extensions/filters/http/wasm/test_data/test_cpp.cc
+test/extensions/filters/network/wasm/config_test.cc
+test/test_common/wasm_base.h
