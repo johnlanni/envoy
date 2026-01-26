@@ -2028,9 +2028,7 @@ WasmResult Context::getUpstreamHosts(StringPairs* result) {
 }
 WasmResult Context::setUpstreamOverrideHost(std::string_view address) {
   if (decoder_callbacks_) {
-    // 1.36.4 interface requires OverrideHost (pair<string_view, bool>)
-    // Second parameter true means strict host selection
-    decoder_callbacks_->setUpstreamOverrideHost({address, true});
+    decoder_callbacks_->setUpstreamOverrideHost(std::make_pair(address, false));
   }
   return WasmResult::Ok;
 }
