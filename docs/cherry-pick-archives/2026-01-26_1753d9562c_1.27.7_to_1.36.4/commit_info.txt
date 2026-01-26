@@ -1,0 +1,12 @@
+commit 1753d9562ccf246b6e582ede8bb22b471eb550d1
+Author: jingze <daijingze.djz@alibaba-inc.com>
+Date:   Mon Jan 19 17:40:32 2026 +0800
+
+    Apply patch: 005-fix-fallback-cluster-bug.patch
+    
+    Change-Id: Ib0bbf494df2ac372bd811f7b9eb03906c8538867
+    Co-developed-by: Cursor <noreply@cursor.com>
+
+ source/common/router/config_impl.cc | 4 +++-
+ source/common/router/config_impl.h  | 4 ++--
+ 2 files changed, 5 insertions(+), 3 deletions(-)
