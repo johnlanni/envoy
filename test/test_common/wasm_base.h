@@ -88,9 +88,9 @@ public:
     // Passes ownership of root_context_.
     Extensions::Common::Wasm::createWasm(
         plugin_, scope_, cluster_manager_, init_manager_, dispatcher_, *api, lifecycle_notifier_,
-        remote_data_provider_, [this](WasmHandleSharedPtr wasm) { wasm_ = wasm; }, create_root);
+        remote_data_provider_, [this](WasmHandleSharedPtr wasm) { base_wasm_ = wasm; }, create_root);
     plugin_handle_ = getOrCreateThreadLocalPlugin(
-        wasm_, plugin_, dispatcher_,
+        base_wasm_, plugin_, dispatcher_,
         [this, create_root](Wasm* wasm, const std::shared_ptr<Plugin>& plugin) {
           root_context_ = static_cast<Context*>(create_root(wasm, plugin));
           return root_context_;
@@ -108,6 +108,7 @@ public:
   NiceMock<Event::MockDispatcher> dispatcher_;
   NiceMock<Upstream::MockClusterManager> cluster_manager_;
   NiceMock<Init::MockManager> init_manager_;
+  WasmHandleSharedPtr base_wasm_; // Keep base_wasm alive for recover callback
   WasmHandleSharedPtr wasm_;
   PluginSharedPtr plugin_;
   PluginHandleSharedPtr plugin_handle_;

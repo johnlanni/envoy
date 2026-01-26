@@ -218,7 +218,7 @@ public:
                                std::string_view details) override;
   void clearRouteCache() override {
 #if defined(HIGRESS)
-    if (decoder_callbacks_ && decoder_callbacks_->downstreamCallbacks() && !disable_clear_route_cache_) {
+    if (!disable_clear_route_cache_ && decoder_callbacks_ && decoder_callbacks_->downstreamCallbacks()) {
 #else
     if (decoder_callbacks_ && decoder_callbacks_->downstreamCallbacks()) {
 #endif
@@ -508,7 +508,6 @@ protected:
       state_prototypes_;
 
   proxy_wasm::AbiVersion abi_version_{proxy_wasm::AbiVersion::Unknown};
-  bool allow_on_headers_stop_iteration_{false};
 #if defined(HIGRESS)
   bool disable_clear_route_cache_ = false;
 #endif

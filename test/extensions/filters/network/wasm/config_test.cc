@@ -220,7 +220,7 @@ TEST_P(WasmNetworkFilterConfigTest, FilterConfigFailClosed) {
   filter_config.wasm()->fail(proxy_wasm::FailState::RuntimeError, "");
   auto context = filter_config.createContext();
 #ifdef HIGRESS
-  EXPECT_NE(context->wasm(), nullptr);
+  EXPECT_EQ(context->wasm(), nullptr);
 #else
   EXPECT_EQ(context->wasm(), nullptr);
 #endif
@@ -247,9 +247,9 @@ TEST_P(WasmNetworkFilterConfigTest, DEPRECATED_FEATURE_TEST(FilterConfigFailOpen
   NetworkFilters::Wasm::FilterConfig filter_config(proto_config, context_);
   filter_config.wasm()->fail(proxy_wasm::FailState::RuntimeError, "");
 #ifdef HIGRESS
-  EXPECT_NE(filter_config.createFilter(), nullptr);
+  EXPECT_EQ(filter_config.createContext(), nullptr);
 #else
-  EXPECT_EQ(filter_config.createFilter(), nullptr);
+  EXPECT_EQ(filter_config.createContext(), nullptr);
 #endif
 }
 

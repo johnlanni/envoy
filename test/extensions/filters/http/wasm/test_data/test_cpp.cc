@@ -67,7 +67,7 @@ bool TestRootContext::onConfigure(size_t size) {
           "string_state",     "metadata",   "request",        "response",    "connection",
           "connection_id",    "upstream",   "source",         "destination", "cluster_name",
           "cluster_metadata", "route_name", "route_metadata", "upstream_host_metadata",
-          "filter_state", "listener_direction" ,"listener_metadata",
+          "filter_state",
       };
       for (const auto& property : properties) {
         if (getProperty({property}).has_value()) {
@@ -81,6 +81,10 @@ bool TestRootContext::onConfigure(size_t size) {
           {{"plugin_name"}, "plugin_name"},
           {{"plugin_vm_id"}, "vm_id"},
           {{"xds", "node", "metadata", "istio.io/metadata"}, "sample_data"},
+#if defined(HIGRESS)
+          {{"listener_direction"}, std::string("\x1\0\0\0\0\0\0\0", 8)}, // INBOUND
+          {{"listener_metadata"}, ""},
+#endif
       };
       for (const auto& property : properties) {
         std::string value;
