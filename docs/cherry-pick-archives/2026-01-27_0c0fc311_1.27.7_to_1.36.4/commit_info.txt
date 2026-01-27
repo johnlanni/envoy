@@ -1,0 +1,73 @@
+commit 492ff3ff810984e116534ae37dea3b013d1a5ff6
+Author: jingze <daijingze.djz@alibaba-inc.com>
+Date:   Mon Jan 19 19:15:14 2026 +0800
+
+    Apply patch: 017-misc-opt-of-wasm-rebuild-mem-and-pb-cache.patch
+    
+    Change-Id: Iee3b58db07eec127c93c09fad285790ea9eb4171
+    Co-developed-by: Cursor <noreply@cursor.com>
+
+ bazel/protobuf_hash_cache.patch                    | 462 ++++++++++++
+ bazel/repositories.bzl                             |   3 +-
+ envoy/config/subscription.h                        |   1 +
+ source/common/http/conn_manager_impl.cc            |  26 +-
+ source/common/http/filter_manager.cc               |  20 +
+ .../listener_manager/filter_chain_manager_impl.cc  |   6 +
+ .../listener_manager/filter_chain_manager_impl.h   |   7 +
+ source/common/listener_manager/listener_impl.cc    |   7 +-
+ .../listener_manager/listener_manager_impl.cc      |   5 +-
+ source/common/protobuf/utility.h                   |  13 +
+ .../common/rds/route_config_update_receiver_impl.h |   5 +-
+ source/extensions/common/wasm/context.cc           |  40 +-
+ source/extensions/common/wasm/stats_handler.h      |   1 +
+ source/extensions/common/wasm/wasm.cc              |  35 +-
+ source/extensions/common/wasm/wasm.h               |   7 +-
+ .../grpc/grpc_subscription_impl.cc                 |  15 +
+ source/extensions/filters/http/wasm/wasm_filter.h  |   2 +-
+ .../redirect_policy/redirect_policy.cc             |  11 +-
+ test/common/http/conn_manager_impl_fuzz_test.cc    |  13 +-
+ test/common/protobuf/utility_test.cc               | 829 +++++++++++++++++++++
+ test/common/stream_info/stream_info_impl_test.cc   |  12 +-
+ .../filters/http/wasm/test_data/test_cpp.cc        |  20 +
+ .../filters/http/wasm/wasm_filter_test.cc          |  80 ++
+ test/test_common/wasm_base.h                       |  10 +
+ 24 files changed, 1607 insertions(+), 23 deletions(-)
+
+
+=== Fix Commit ===
+commit aa97309333b47390cd8d9928e46f57efdb67bf5f
+Author: jingze <daijingze.djz@alibaba-inc.com>
+Date:   Tue Jan 27 15:58:43 2026 +0800
+
+    Fix: adapt cherry-pick to 1.36.4 architecture
+    
+    This commit includes the following fixes after cherry-picking
+    017-misc-opt-of-wasm-rebuild-mem-and-pb-cache.patch:
+    
+    1. Protobuf hash cache adaptation:
+       - Create protobuf_hash_cache_v29.3.patch for protobuf v29.3
+       - Update repositories.bzl to use the new patch
+    
+    2. Wasm rebuild mechanism:
+       - Add shouldRebuild()/setShouldRebuild() to Wasm class
+       - Integrate rebuild check into PluginConfig::maybeReloadHandleIfNeeded()
+       - Replace recover() with rebuild(bool) method
+    
+    3. Test fixes:
+       - Fix stream_info_impl_test.cc sizeof assertions
+       - Add missing test cases in wasm_test.cc
+    
+    Change-Id: I9876543210fedcba9876543210fedcba98765432
+    Co-developed-by: Cursor <noreply@cursor.com>
+
+ bazel/protobuf_hash_cache_v29.3.patch              | 488 +++++++++++++++++++++
+ bazel/repositories.bzl                             |   2 +-
+ source/common/http/filter_manager.cc               |  16 +-
+ .../listener_manager/filter_chain_manager_impl.cc  |   8 +
+ .../listener_manager/filter_chain_manager_impl.h   |   7 +-
+ source/common/protobuf/utility.h                   |   3 +-
+ source/extensions/common/wasm/context.cc           |   6 -
+ source/extensions/common/wasm/wasm.h               |   2 -
+ test/common/stream_info/stream_info_impl_test.cc   |   2 +-
+ test/extensions/common/wasm/wasm_test.cc           |  12 +
+ 10 files changed, 526 insertions(+), 20 deletions(-)
