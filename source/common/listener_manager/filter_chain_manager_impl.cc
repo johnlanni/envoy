@@ -170,11 +170,19 @@ absl::Status FilterChainManagerImpl::addFilterChains(
   return absl::OkStatus();
 }
 
+#if defined(HIGRESS) && defined(ENVOY_ENABLE_FULL_PROTOS)
+absl::Status FilterChainManagerImpl::verifyNoDuplicateMatchers(
+    const xds::type::matcher::v3::Matcher* filter_chain_matcher,
+    absl::node_hash_map<envoy::config::listener::v3::FilterChainMatch, std::string, HashCachedMessageUtil,
+                        HashCachedMessageUtil>& filter_chains,
+    const envoy::config::listener::v3::FilterChain& filter_chain) {
+#else
 absl::Status FilterChainManagerImpl::verifyNoDuplicateMatchers(
     const xds::type::matcher::v3::Matcher* filter_chain_matcher,
     absl::node_hash_map<envoy::config::listener::v3::FilterChainMatch, std::string, MessageUtil,
                         MessageUtil>& filter_chains,
     const envoy::config::listener::v3::FilterChain& filter_chain) {
+#endif
   const auto& filter_chain_match = filter_chain.filter_chain_match();
   if (!filter_chain_match.address_suffix().empty() || filter_chain_match.has_suffix_len()) {
     return absl::InvalidArgumentError(fmt::format(

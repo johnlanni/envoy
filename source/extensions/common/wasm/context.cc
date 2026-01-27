@@ -488,12 +488,6 @@ WasmResult serializeValue(Filters::Common::Expr::CelValue value, std::string* re
   _f(NODE) _f(LISTENER_DIRECTION) _f(LISTENER_METADATA) _f(CLUSTER_NAME) _f(CLUSTER_METADATA)      \
       _f(ROUTE_NAME) _f(ROUTE_METADATA) _f(PLUGIN_NAME) _f(UPSTREAM_HOST_METADATA)                 \
           _f(PLUGIN_ROOT_ID) _f(PLUGIN_VM_ID) _f(PLUGIN_VM_MEMORY) _f(CONNECTION_ID)
-#else
-#define PROPERTY_TOKENS(_f)                                                                        \
-  _f(NODE) _f(LISTENER_DIRECTION) _f(LISTENER_METADATA) _f(CLUSTER_NAME) _f(CLUSTER_METADATA)      \
-      _f(ROUTE_NAME) _f(ROUTE_METADATA) _f(PLUGIN_NAME) _f(UPSTREAM_HOST_METADATA)                 \
-          _f(PLUGIN_ROOT_ID) _f(PLUGIN_VM_ID) _f(CONNECTION_ID)
-#endif
 
 Upstream::HostDescriptionConstSharedPtr getHost(const StreamInfo::StreamInfo* info) {
   if (info && info->upstreamInfo() && info->upstreamInfo().value().get().upstreamHost()) {

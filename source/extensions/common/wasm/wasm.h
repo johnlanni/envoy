@@ -92,8 +92,6 @@ public:
 
 #if defined(HIGRESS)
   LifecycleStats& lifecycleStats() { return lifecycle_stats_handler_.stats(); }
-  bool shouldRebuild() const { return should_rebuild_; }
-  void setShouldRebuild(bool value) { should_rebuild_ = value; }
 #endif
 
 protected:

@@ -713,7 +713,7 @@ def _com_google_protobuf():
     external_http_archive(
         "com_google_protobuf",
         patches = ["@envoy//bazel:protobuf.patch",
-                   "@envoy//bazel:protobuf_hash_cache.patch"],
+                   "@envoy//bazel:protobuf_hash_cache_v29.3.patch"],
         patch_args = ["-p1"],
     )
 

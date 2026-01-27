@@ -617,7 +617,8 @@ public:
 #if defined(HIGRESS) && defined(ENVOY_ENABLE_FULL_PROTOS)
 class HashCachedMessageUtil : public MessageUtil {
 public:
-  bool operator()(const Protobuf::Message& message) const { return message.GetCachedHashValue(); }
+  // std::hash - returns size_t for absl::flat_hash_map compatibility
+  std::size_t operator()(const Protobuf::Message& message) const { return message.GetCachedHashValue(); }
 
   bool operator()(const Protobuf::Message& lhs, const Protobuf::Message& rhs) const {
     return lhs.GetCachedHashValue() == rhs.GetCachedHashValue();

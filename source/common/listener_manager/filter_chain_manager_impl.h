@@ -83,8 +83,13 @@ private:
 
 using FilterChainActionFactoryContext = Configuration::ServerFactoryContext;
 using FilterChainsByName = absl::flat_hash_map<std::string, Network::DrainableFilterChainSharedPtr>;
+#if defined(HIGRESS) && defined(ENVOY_ENABLE_FULL_PROTOS)
 using FilterChainsByMatcher = absl::node_hash_map<envoy::config::listener::v3::FilterChainMatch,
-                                                  std::string, MessageUtil, MessageUtil>;
+                                                std::string, HashCachedMessageUtil, HashCachedMessageUtil>;
+#else
+using FilterChainsByMatcher = absl::node_hash_map<envoy::config::listener::v3::FilterChainMatch,
+                                                std::string, MessageUtil, MessageUtil>;
+#endif
 
 class FilterChainTypedMetadataFactory : public Envoy::Config::TypedMetadataFactory {};
 

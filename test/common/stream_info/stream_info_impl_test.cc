@@ -54,7 +54,7 @@ protected:
         sizeof(stream_info) == 816 || sizeof(stream_info) == 768 ||
         // add hash cache to protobuf message
         // detail: bazel/protobuf_hash_cache.patch
-        sizeof(stream_info) == 784 ||
+        sizeof(stream_info) == 784 || sizeof(stream_info) == 752 ||
 #endif
         sizeof(stream_info) == 744)
         << "If adding fields to StreamInfoImpl, please check to see if you "

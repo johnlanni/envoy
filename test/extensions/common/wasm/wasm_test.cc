@@ -1301,8 +1301,13 @@ TEST_P(WasmCommonContextTest, ProcessInvalidGRPCStatusCodeAsEmptyInLocalReply) {
   setupContext();
   EXPECT_CALL(decoder_callbacks_, encodeHeaders_(_, _))
       .WillOnce([this](Http::ResponseHeaderMap&, bool) { context().onResponseHeaders(0, false); });
+#if defined(HIGRESS)
+  EXPECT_CALL(decoder_callbacks_, sendLocalReply(Envoy::Http::Code::OK, testing::Eq("body"), _,
+                                                 testing::Eq(absl::nullopt), testing::Eq("via_wasm::plugin_name::ok")));
+#else
   EXPECT_CALL(decoder_callbacks_, sendLocalReply(Envoy::Http::Code::OK, testing::Eq("body"), _,
                                                  testing::Eq(absl::nullopt), testing::Eq("ok")));
+#endif
 
   // Create in-VM context.
   context().onCreate();
@@ -1325,10 +1330,17 @@ TEST_P(WasmCommonContextTest, ProcessValidGRPCStatusCodeAsEmptyInLocalReply) {
   setupContext();
   EXPECT_CALL(decoder_callbacks_, encodeHeaders_(_, _))
       .WillOnce([this](Http::ResponseHeaderMap&, bool) { context().onResponseHeaders(0, false); });
+#if defined(HIGRESS)
+  EXPECT_CALL(decoder_callbacks_,
+              sendLocalReply(Envoy::Http::Code::OK, testing::Eq("body"), _,
+                             testing::Eq(Grpc::Status::WellKnownGrpcStatus::PermissionDenied),
+                             testing::Eq("via_wasm::plugin_name::ok")));
+#else
   EXPECT_CALL(decoder_callbacks_,
               sendLocalReply(Envoy::Http::Code::OK, testing::Eq("body"), _,
                              testing::Eq(Grpc::Status::WellKnownGrpcStatus::PermissionDenied),
                              testing::Eq("ok")));
+#endif
 
   // Create in-VM context.
   context().onCreate();
