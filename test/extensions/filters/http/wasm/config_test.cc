@@ -64,10 +64,21 @@ protected:
   void initializeForRemote() {
     retry_timer_ = new Event::MockTimer();
 
+#ifdef HIGRESS
+    // HIGRESS adds runtime stats timer in initializeRuntimeStatsTimer()
+    runtime_stats_timer_ = new NiceMock<Event::MockTimer>();
+    EXPECT_CALL(dispatcher_, createTimer_(_))
+        .WillOnce(Invoke([this](Event::TimerCb timer_cb) {
+          retry_timer_cb_ = timer_cb;
+          return retry_timer_;
+        }))
+        .WillOnce(Invoke([this](Event::TimerCb) { return runtime_stats_timer_; }));
+#else
     EXPECT_CALL(dispatcher_, createTimer_(_)).WillOnce(Invoke([this](Event::TimerCb timer_cb) {
       retry_timer_cb_ = timer_cb;
       return retry_timer_;
     }));
+#endif
   }
 
   void initializeContextInitManager(Init::ExpectableWatcherImpl& init_watcher) {
@@ -131,6 +142,9 @@ protected:
   NiceMock<Event::MockDispatcher> dispatcher_;
   Event::MockTimer* retry_timer_;
   Event::TimerCb retry_timer_cb_;
+#ifdef HIGRESS
+  NiceMock<Event::MockTimer>* runtime_stats_timer_;
+#endif
 
 private:
   NiceMock<Server::Configuration::MockFactoryContext> context_;

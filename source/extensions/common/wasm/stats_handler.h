@@ -46,6 +46,15 @@ struct CreateWasmStats {
   GAUGE(active, NeverImport)
 #endif
 
+#ifdef HIGRESS
+#define RUNTIME_STATS(PLUGIN_GAUGE)                                                                \
+  PLUGIN_GAUGE(memory_size, NeverImport)
+
+struct RuntimeStats {
+  RUNTIME_STATS(GENERATE_GAUGE_STRUCT)
+};
+#endif
+
 struct LifecycleStats {
 #ifdef HIGRESS
   LIFECYCLE_STATS(GENERATE_COUNTER_STRUCT, GENERATE_GAUGE_STRUCT, GENERATE_COUNTER_STRUCT,
@@ -166,6 +175,24 @@ private:
 };
 
 using StatsHandlerSharedPtr = std::shared_ptr<StatsHandler>;
+
+#ifdef HIGRESS
+class RuntimeStatsHandler {
+public:
+  RuntimeStatsHandler(const Stats::ScopeSharedPtr& scope, const std::string& runtime, const std::string& plugin_name, const std::string& thread_name)
+  : runtime(runtime), plugin_name(plugin_name), runtime_stats_(RuntimeStats{RUNTIME_STATS(POOL_GAUGE_PREFIX(*scope, absl::StrCat("wasm.", runtime, ".plugin.", plugin_name, ".", thread_name, ".")))}){}
+  
+  ~RuntimeStatsHandler() = default;
+  
+  std::string runtime;
+  std::string plugin_name;
+  void updateMemorySize(uint64_t memory_size) {
+    runtime_stats_.memory_size_.set(memory_size);
+  }
+protected:
+  RuntimeStats runtime_stats_;
+};
+#endif
 
 } // namespace Wasm
 } // namespace Common

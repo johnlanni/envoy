@@ -76,6 +76,10 @@ public:
 
   virtual std::string buildVersion() { return BUILD_VERSION_NUMBER; }
 
+#if defined(HIGRESS)
+  void initializeRuntimeStatsTimer();
+#endif
+
   uint32_t nextDnsToken() {
     do {
       dns_token_++;
@@ -110,6 +114,13 @@ protected:
   Event::Dispatcher& dispatcher_;
   absl::flat_hash_map<uint32_t, Event::TimerPtr> timer_; // per root_id.
   TimeSource& time_source_;
+
+#if defined(HIGRESS)
+  // Runtime stats
+  RuntimeStatsHandler runtime_stats_handler_;
+  Event::TimerPtr runtime_stats_timer_;
+  static constexpr std::chrono::milliseconds kRuntimeStatsInterval{1000};
+#endif
 
   // Lifecycle stats
   LifecycleStatsHandler lifecycle_stats_handler_;

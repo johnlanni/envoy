@@ -94,6 +94,23 @@ const int MIN_RECOVER_INTERVAL_SECONDS = 1;
 
 } // namespace
 
+#ifdef HIGRESS
+void Wasm::initializeRuntimeStatsTimer(){
+  runtime_stats_timer_ = dispatcher_.createTimer(
+  [weak = std::weak_ptr<Wasm>(std::static_pointer_cast<Wasm>(shared_from_this()))]() {
+      auto shared = weak.lock();
+      if (shared) {
+        auto vm = shared->wasm_vm();
+        if (vm) {
+          shared->runtime_stats_handler_.updateMemorySize(vm->getMemorySize());
+        }
+        shared->runtime_stats_timer_->enableTimer(std::chrono::milliseconds(Wasm::kRuntimeStatsInterval));
+      }
+    });
+  runtime_stats_timer_->enableTimer(std::chrono::milliseconds(Wasm::kRuntimeStatsInterval));
+}
+#endif
+
 Wasm::Wasm(WasmConfig& config, absl::string_view vm_key, const Stats::ScopeSharedPtr& scope,
            Api::Api& api, Upstream::ClusterManager& cluster_manager, Event::Dispatcher& dispatcher)
     : WasmBase(
@@ -106,11 +123,12 @@ Wasm::Wasm(WasmConfig& config, absl::string_view vm_key, const Stats::ScopeShare
       cluster_manager_(cluster_manager), dispatcher_(dispatcher),
       time_source_(dispatcher.timeSource()),
 #ifdef HIGRESS
+      runtime_stats_handler_(RuntimeStatsHandler(scope, config.config().vm_config().runtime(), config.config().name(), dispatcher.name())),
       lifecycle_stats_handler_(LifecycleStatsHandler(scope, config.config().vm_config().runtime(),
                                                      config.config().name())) {
 #else
       lifecycle_stats_handler_(
-          LifecycleStatsHandler(scope, config.config().vm_config().runtime()) {
+          LifecycleStatsHandler(scope, config.config().vm_config().runtime())) {
 #endif
   lifecycle_stats_handler_.onEvent(WasmEvent::VmCreated);
   ENVOY_LOG(debug, "Base Wasm created {} now active", lifecycle_stats_handler_.getActiveVmCount());
@@ -128,6 +146,9 @@ Wasm::Wasm(WasmHandleSharedPtr base_wasm_handle, Event::Dispatcher& dispatcher)
       custom_stat_namespace_(stat_name_pool_.add(CustomStatNamespace)),
       cluster_manager_(getWasm(base_wasm_handle)->clusterManager()), dispatcher_(dispatcher),
       time_source_(dispatcher.timeSource()),
+#ifdef HIGRESS
+      runtime_stats_handler_(RuntimeStatsHandler(getWasm(base_wasm_handle)->scope_, getWasm(base_wasm_handle)->runtime_stats_handler_.runtime, getWasm(base_wasm_handle)->runtime_stats_handler_.plugin_name, dispatcher.name())), 
+#endif
       lifecycle_stats_handler_(getWasm(base_wasm_handle)->lifecycle_stats_handler_) {
   lifecycle_stats_handler_.onEvent(WasmEvent::VmCreated);
 #ifdef HIGRESS
@@ -182,6 +203,11 @@ void Wasm::tickHandler(uint32_t root_context_id) {
 
 Wasm::~Wasm() {
   lifecycle_stats_handler_.onEvent(WasmEvent::VmShutDown);
+#ifdef HIGRESS
+  if (runtime_stats_timer_) {
+    runtime_stats_timer_->disableTimer();
+  }
+#endif
   ENVOY_LOG(debug, "~Wasm {} remaining active", lifecycle_stats_handler_.getActiveVmCount());
 }
 
@@ -337,6 +363,9 @@ getWasmHandleCloneFactory(Event::Dispatcher& dispatcher,
              WasmHandleBaseSharedPtr base_wasm) -> std::shared_ptr<WasmHandleBase> {
     auto wasm = std::make_shared<Wasm>(std::static_pointer_cast<WasmHandle>(base_wasm), dispatcher);
     wasm->setCreateContextForTesting(nullptr, create_root_context_for_testing);
+#ifdef HIGRESS
+    wasm->initializeRuntimeStatsTimer();
+#endif
     return std::static_pointer_cast<WasmHandleBase>(std::make_shared<WasmHandle>(std::move(wasm)));
   };
 }
