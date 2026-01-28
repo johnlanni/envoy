@@ -80,7 +80,7 @@ GrpcSubscriptionImpl::onConfigUpdate(const std::vector<Config::DecodedResourceRe
   std::chrono::milliseconds update_duration = std::chrono::duration_cast<std::chrono::milliseconds>(
       dispatcher_.timeSource().monotonicTime() - start);
   stats_.update_success_.inc();
-#ifdef ALIMESH
+#if defined(HIGRESS)
   stats_.last_update_success_.set(true);
 #endif
   stats_.update_attempt_.inc();
@@ -113,7 +113,7 @@ absl::Status GrpcSubscriptionImpl::onConfigUpdate(
   std::chrono::milliseconds update_duration = std::chrono::duration_cast<std::chrono::milliseconds>(
       dispatcher_.timeSource().monotonicTime() - start);
   stats_.update_success_.inc();
-#ifdef ALIMESH
+#if defined(HIGRESS)
   stats_.last_update_success_.set(true);
 #endif
   stats_.update_time_.set(DateUtil::nowToMilliseconds(dispatcher_.timeSource()));
@@ -128,14 +128,14 @@ void GrpcSubscriptionImpl::onConfigUpdateFailed(ConfigUpdateFailureReason reason
   switch (reason) {
   case Envoy::Config::ConfigUpdateFailureReason::ConnectionFailure:
     stats_.update_failure_.inc();
-#ifdef ALIMESH
+#if defined(HIGRESS)
     stats_.last_update_success_.set(false);
 #endif
     ENVOY_LOG(debug, "gRPC update for {} failed", type_url_);
     break;
   case Envoy::Config::ConfigUpdateFailureReason::FetchTimedout:
     stats_.init_fetch_timeout_.inc();
-#ifdef ALIMESH
+#if defined(HIGRESS)
     stats_.last_update_success_.set(false);
 #endif
     disableInitFetchTimeoutTimer();
@@ -147,7 +147,7 @@ void GrpcSubscriptionImpl::onConfigUpdateFailed(ConfigUpdateFailureReason reason
     ASSERT(e != nullptr);
     disableInitFetchTimeoutTimer();
     stats_.update_rejected_.inc();
-#ifdef ALIMESH
+#if defined(HIGRESS)
     stats_.last_update_success_.set(false);
 #endif
     ENVOY_LOG(warn, "gRPC config for {} rejected: {}", type_url_, e->what());
