@@ -1066,7 +1066,12 @@ TEST_P(QuicHttpIntegrationTest, DeferredLoggingWithInternalRedirect) {
   EXPECT_EQ(/* RESPONSE_CODE */ metrics.at(4), "302");
   EXPECT_EQ(/* BYTES_RECEIVED */ metrics.at(5), "0");
   EXPECT_EQ(/* request headers */ metrics.at(19), metrics.at(20));
+#if defined(HIGRESS)
+  // HIGRESS preserves original response code details, forming "internal_redirect:via_upstream"
+  EXPECT_EQ(/* RESPONSE_CODE_DETAILS */ metrics.at(8), "internal_redirect:via_upstream");
+#else
   EXPECT_EQ(/* RESPONSE_CODE_DETAILS */ metrics.at(8), "internal_redirect");
+#endif
   EXPECT_EQ(/* RESP(test-header) */ metrics.at(21), "test-header-value");
 
   waitForNextUpstreamRequest();
@@ -1084,7 +1089,13 @@ TEST_P(QuicHttpIntegrationTest, DeferredLoggingWithInternalRedirect) {
   EXPECT_EQ(1, test_server_->counter("cluster.cluster_0.upstream_internal_redirect_succeeded_total")
                    ->value());
   // 302 was never returned downstream
+#if defined(HIGRESS)
+  // In HIGRESS, chargeStats is called during internal redirect for access logging,
+  // so 3xx counter is incremented even for successful internal redirects.
+  EXPECT_EQ(1, test_server_->counter("http.config_test.downstream_rq_3xx")->value());
+#else
   EXPECT_EQ(0, test_server_->counter("http.config_test.downstream_rq_3xx")->value());
+#endif
   EXPECT_EQ(1, test_server_->counter("http.config_test.downstream_rq_2xx")->value());
 
   log = waitForAccessLog(access_log_name_, 1);

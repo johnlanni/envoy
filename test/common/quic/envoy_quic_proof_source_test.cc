@@ -224,6 +224,19 @@ public:
       EXPECT_CALL(tls_cert_config_, privateKey())
           .Times(testing::AtLeast(1))
           .WillRepeatedly(ReturnRef(pkey_));
+#if defined(HIGRESS)
+    } else if (expect_fail_to_load) {
+      // HIGRESS allows RSA keys < 2048 bits, so privateKey() will be called
+      // when the cert chain loads successfully but the key doesn't match.
+      EXPECT_CALL(tls_cert_config_, privateKey())
+          .Times(testing::AnyNumber())
+          .WillRepeatedly(ReturnRef(pkey_));
+#endif
+    } else {
+      // Set default return for privateKey() to avoid uninteresting mock call failures
+      EXPECT_CALL(tls_cert_config_, privateKey())
+          .Times(testing::AnyNumber())
+          .WillRepeatedly(ReturnRef(EMPTY_STRING));
     }
     ASSERT_TRUE(secret_update_callback_ != nullptr);
     absl::Status callback_status = secret_update_callback_();
@@ -328,10 +341,19 @@ f/lOd5zz2e7Tu2pUtx1sX1tlKph1D0ANpJwxRV78R2hjmynLSl7h4Ual9NMubqkD
 x96rVeUbRJ/qU4//nNM/XQa9vIAIcTZ0jFhmb0c3R4rmoqqC3vkSDwtaE5yuS5T4
 GUy+n0vQNB0cXGzgcGI=
 -----END CERTIFICATE-----)"};
+#if defined(HIGRESS)
+  // HIGRESS allows RSA keys < 2048 bits, so cert chain loads successfully.
+  // The failure occurs later when the private key (from a different cert) doesn't match.
   EXPECT_THAT_THROWS_MESSAGE(
       expectCertChainAndPrivateKey(cert_with_rsa_1024, false, true), EnvoyException,
-      HasSubstr("Failed to load certificate chain from , only RSA certificates with "
-                "2048-bit"));
+      HasSubstr("Failed to load private key from "));
+#else
+  // Upstream Envoy rejects RSA keys < 2048 bits at certificate chain validation.
+  EXPECT_THROW_WITH_MESSAGE(expectCertChainAndPrivateKey(cert_with_rsa_1024, false, false),
+                            EnvoyException,
+                            "Failed to load certificate chain from , only RSA "
+                            "certificates with 2048-bit or larger keys are supported");
+#endif
 }
 
 TEST_F(EnvoyQuicProofSourceTest, ComputeSignatureFailNoFilterChain) {

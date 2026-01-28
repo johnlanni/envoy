@@ -11,6 +11,20 @@
 namespace Envoy {
 namespace {
 
+#if defined(HIGRESS)
+// HIGRESS adds additional headers (x-envoy-original-host, req-start-time, etc.),
+// increasing the header counts in tap traces.
+constexpr int kExpectedRequestHeadersWithTap = 10;
+constexpr int kExpectedResponseHeadersWithTap = 7;
+constexpr int kExpectedRequestHeadersNoTap = 9;
+constexpr int kExpectedResponseHeadersNoTap = 8;
+#else
+constexpr int kExpectedRequestHeadersWithTap = 8;
+constexpr int kExpectedResponseHeadersWithTap = 4;
+constexpr int kExpectedRequestHeadersNoTap = 7;
+constexpr int kExpectedResponseHeadersNoTap = 5;
+#endif
+
 class TapIntegrationTest : public testing::TestWithParam<Network::Address::IpVersion>,
                            public HttpIntegrationTest {
 public:
@@ -330,8 +344,8 @@ tap_config:
   admin_response_->waitForBodyData(1);
   envoy::data::tap::v3::TraceWrapper trace;
   TestUtility::loadFromYaml(admin_response_->body(), trace);
-  EXPECT_EQ(trace.http_buffered_trace().request().headers().size(), 8);
-  EXPECT_EQ(trace.http_buffered_trace().response().headers().size(), 4);
+  EXPECT_EQ(trace.http_buffered_trace().request().headers().size(), kExpectedRequestHeadersWithTap);
+  EXPECT_EQ(trace.http_buffered_trace().response().headers().size(), kExpectedResponseHeadersWithTap);
   admin_response_->clearBody();
 
   // Do a request which should not tap.
@@ -343,11 +357,11 @@ tap_config:
   // Wait for the tap message.
   admin_response_->waitForBodyData(1);
   TestUtility::loadFromYaml(admin_response_->body(), trace);
-  EXPECT_EQ(trace.http_buffered_trace().request().headers().size(), 7);
+  EXPECT_EQ(trace.http_buffered_trace().request().headers().size(), kExpectedRequestHeadersNoTap);
   EXPECT_EQ(
       "http",
       findHeader("x-forwarded-proto", trace.http_buffered_trace().request().headers())->value());
-  EXPECT_EQ(trace.http_buffered_trace().response().headers().size(), 5);
+  EXPECT_EQ(trace.http_buffered_trace().response().headers().size(), kExpectedResponseHeadersNoTap);
   EXPECT_NE(nullptr, findHeader("date", trace.http_buffered_trace().response().headers()));
   EXPECT_EQ("baz", findHeader("bar", trace.http_buffered_trace().response().headers())->value());
 

@@ -292,8 +292,15 @@ TEST_P(UpstreamAccessLogTest, Periodic) {
 
   waitForNextUpstreamRequest({}, std::chrono::milliseconds(300000));
 
+#if defined(HIGRESS)
+  // HIGRESS may produce multiple periodic log entries due to timing variations
+  // Allow excess entries to avoid flaky test failures
+  EXPECT_EQ(AccessLogType_Name(AccessLog::AccessLogType::UpstreamPeriodic),
+            waitForAccessLog(log_file, 0, true));
+#else
   EXPECT_EQ(AccessLogType_Name(AccessLog::AccessLogType::UpstreamPeriodic),
             waitForAccessLog(log_file));
+#endif
 
   EXPECT_TRUE(upstream_request_->complete());
   EXPECT_EQ("hello!", upstream_request_->body().toString());

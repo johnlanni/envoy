@@ -48,6 +48,11 @@ protected:
     ON_CALL(stream_info, upstreamClusterInfo())
         .WillByDefault(
             Return(absl::make_optional<Upstream::ClusterInfoConstSharedPtr>(cluster_info_)));
+
+#if defined(HIGRESS)
+    ON_CALL(stream_info, getCustomSpanTagMap()).WillByDefault(testing::ReturnRef(custom_span_tags_));
+    ON_CALL(stream_info, setCustomSpanTag(_, _));
+#endif
   }
   struct CustomTagCase {
     std::string custom_tag;
@@ -81,6 +86,9 @@ protected:
   Tracing::CustomTagMap custom_tags_;
   Http::TestRequestHeaderMapImpl request_headers_;
   NiceMock<StreamInfo::MockStreamInfo> stream_info;
+#if defined(HIGRESS)
+  absl::flat_hash_map<std::string, std::string> custom_span_tags_;
+#endif
   std::shared_ptr<NiceMock<Upstream::MockClusterInfo>> cluster_info_{
       std::make_shared<NiceMock<Upstream::MockClusterInfo>>()};
   Upstream::MockHostDescription* host_{new NiceMock<Upstream::MockHostDescription>()};

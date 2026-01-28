@@ -81,6 +81,9 @@ MockStreamDecoderFilterCallbacks::MockStreamDecoderFilterCallbacks() {
   ON_CALL(*this, modifyDecodingBuffer(_, _))
       .WillByDefault(Invoke(
           [this](std::function<void(Buffer::Instance&)> callback, bool backup_for_replace) -> void {
+            if (!buffer_) {
+              buffer_ = std::make_unique<Buffer::OwnedImpl>();
+            }
             if (backup_for_replace) {
               Buffer::InstancePtr tmp_data = std::make_unique<Buffer::OwnedImpl>();
               tmp_data->move(*buffer_.get());
@@ -89,6 +92,9 @@ MockStreamDecoderFilterCallbacks::MockStreamDecoderFilterCallbacks() {
           }));
   ON_CALL(*this, modifyDecodingBuffer(_))
       .WillByDefault(Invoke([this](std::function<void(Buffer::Instance&)> callback) -> void {
+        if (!buffer_) {
+          buffer_ = std::make_unique<Buffer::OwnedImpl>();
+        }
         callback(*buffer_.get());
       }));
 #endif

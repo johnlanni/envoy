@@ -691,13 +691,10 @@ void HttpIntegrationTest::testRouterUpstreamProtocolError(const std::string& exp
   FakeRawConnectionPtr fake_upstream_connection;
   ASSERT_TRUE(fake_upstreams_[0]->waitForRawConnection(fake_upstream_connection));
   std::string data;
-#if defined(HIGRESS)
-  // We added some custom TRI headers, so the request data changed.
-  ASSERT_TRUE(fake_upstream_connection->waitForData(247, &data));
-#else
+  // Use inexact match to handle varying header sizes (HIGRESS adds custom headers like
+  // x-envoy-original-host and req-start-time)
   ASSERT_TRUE(fake_upstream_connection->waitForData(
       FakeRawConnection::waitForInexactMatch("\r\n\r\n"), &data));
-#endif
   ASSERT_TRUE(fake_upstream_connection->write("bad protocol data!"));
   ASSERT_TRUE(fake_upstream_connection->waitForDisconnect());
   ASSERT_TRUE(codec_client_->waitForDisconnect());

@@ -58,6 +58,15 @@ using ::testing::Unused;
 // ext_proc filter and verify the behavior using mocks.
 
 class HttpFilterTest : public testing::Test {
+public:
+#if defined(HIGRESS)
+  HttpFilterTest() {
+    ON_CALL(stream_info_, getCustomSpanTagMap()).WillByDefault(testing::ReturnRef(custom_span_tags_));
+    ON_CALL(stream_info_, setCustomSpanTag(_, _));
+    ON_CALL(async_client_stream_info_, getCustomSpanTagMap()).WillByDefault(testing::ReturnRef(custom_span_tags_));
+    ON_CALL(async_client_stream_info_, setCustomSpanTag(_, _));
+  }
+#endif
 protected:
   void initialize(std::string&& yaml, bool is_upstream_filter = false);
   void initializeTestSendAll();
@@ -187,6 +196,12 @@ protected:
   Router::RouteConstSharedPtr route_;
   testing::NiceMock<StreamInfo::MockStreamInfo> stream_info_;
   testing::NiceMock<StreamInfo::MockStreamInfo> async_client_stream_info_;
+
+#ifdef HIGRESS
+  // Initialize default values for HIGRESS-specific StreamInfo methods
+  // (Added via constructor initialization)
+  absl::flat_hash_map<std::string, std::string> custom_span_tags_;
+#endif
   TestRequestHeaderMapImpl request_headers_;
   TestResponseHeaderMapImpl response_headers_;
   TestRequestTrailerMapImpl request_trailers_;

@@ -133,15 +133,27 @@ TEST_P(RedirectExtensionIntegrationTest, InternalRedirectPreventedByPreviousRout
   // Redirect to another route
   redirect_response_.setLocation("http://handle.internal.redirect.max.three.hop/random/path");
   first_request->encodeHeaders(redirect_response_, true);
+#if defined(HIGRESS)
+  // HIGRESS preserves original response code details, forming "internal_redirect:via_upstream"
+  EXPECT_THAT(waitForAccessLog(access_log_name_, 0),
+              HasSubstr("302 internal_redirect:via_upstream test-header-value"));
+#else
   EXPECT_THAT(waitForAccessLog(access_log_name_, 0),
               HasSubstr("302 internal_redirect test-header-value"));
+#endif
 
   auto second_request = waitForNextStream();
   // Redirect back to the original route.
   redirect_response_.setLocation("http://handle.internal.redirect.no.repeated.target/another/path");
   second_request->encodeHeaders(redirect_response_, true);
+#if defined(HIGRESS)
+  // HIGRESS preserves original response code details, forming "internal_redirect:via_upstream"
+  EXPECT_THAT(waitForAccessLog(access_log_name_, 1),
+              HasSubstr("302 internal_redirect:via_upstream test-header-value"));
+#else
   EXPECT_THAT(waitForAccessLog(access_log_name_, 1),
               HasSubstr("302 internal_redirect test-header-value"));
+#endif
 
   auto third_request = waitForNextStream();
   // Redirect to the same route as the first redirect. This should fail.
@@ -160,7 +172,13 @@ TEST_P(RedirectExtensionIntegrationTest, InternalRedirectPreventedByPreviousRout
   EXPECT_EQ(
       1,
       test_server_->counter("http.config_test.passthrough_internal_redirect_predicate")->value());
+#if defined(HIGRESS)
+  // In HIGRESS, chargeStats is called during each internal redirect for access logging,
+  // so 3xx counter is incremented for each redirect (2 successful + 1 passthrough = 3).
+  EXPECT_EQ(3, test_server_->counter("http.config_test.downstream_rq_3xx")->value());
+#else
   EXPECT_EQ(1, test_server_->counter("http.config_test.downstream_rq_3xx")->value());
+#endif
   EXPECT_EQ("test-header-value",
             response->headers().get(test_header_key_)[0]->value().getStringView());
 }
@@ -200,16 +218,28 @@ TEST_P(RedirectExtensionIntegrationTest, InternalRedirectPreventedByAllowListedR
   // Redirect to another route
   redirect_response_.setLocation("http://handle.internal.redirect.max.three.hop/random/path");
   first_request->encodeHeaders(redirect_response_, true);
+#if defined(HIGRESS)
+  // HIGRESS preserves original response code details, forming "internal_redirect:via_upstream"
+  EXPECT_THAT(waitForAccessLog(access_log_name_, 0),
+              HasSubstr("302 internal_redirect:via_upstream test-header-value"));
+#else
   EXPECT_THAT(waitForAccessLog(access_log_name_, 0),
               HasSubstr("302 internal_redirect test-header-value"));
+#endif
 
   auto second_request = waitForNextStream();
   // Redirect back to the original route.
   redirect_response_.setLocation(
       "http://handle.internal.redirect.only.allow.listed.target/another/path");
   second_request->encodeHeaders(redirect_response_, true);
+#if defined(HIGRESS)
+  // HIGRESS preserves original response code details, forming "internal_redirect:via_upstream"
+  EXPECT_THAT(waitForAccessLog(access_log_name_, 1),
+              HasSubstr("302 internal_redirect:via_upstream test-header-value"));
+#else
   EXPECT_THAT(waitForAccessLog(access_log_name_, 1),
               HasSubstr("302 internal_redirect test-header-value"));
+#endif
 
   auto third_request = waitForNextStream();
   // Redirect to the non-allow-listed route. This should fail.
@@ -226,7 +256,13 @@ TEST_P(RedirectExtensionIntegrationTest, InternalRedirectPreventedByAllowListedR
   EXPECT_EQ(
       1,
       test_server_->counter("http.config_test.passthrough_internal_redirect_predicate")->value());
+#if defined(HIGRESS)
+  // In HIGRESS, chargeStats is called during each internal redirect for access logging,
+  // so 3xx counter is incremented for each redirect (2 successful + 1 passthrough = 3).
+  EXPECT_EQ(3, test_server_->counter("http.config_test.downstream_rq_3xx")->value());
+#else
   EXPECT_EQ(1, test_server_->counter("http.config_test.downstream_rq_3xx")->value());
+#endif
   EXPECT_THAT(waitForAccessLog(access_log_name_, 2),
               HasSubstr("302 via_upstream test-header-value"));
   EXPECT_EQ("test-header-value",
@@ -270,16 +306,28 @@ TEST_P(RedirectExtensionIntegrationTest, InternalRedirectPreventedBySafeCrossSch
   // Redirect to another route
   redirect_response_.setLocation("http://handle.internal.redirect.max.three.hop/random/path");
   first_request->encodeHeaders(redirect_response_, true);
+#if defined(HIGRESS)
+  // HIGRESS preserves original response code details, forming "internal_redirect:via_upstream"
+  EXPECT_THAT(waitForAccessLog(access_log_name_, 0),
+              HasSubstr("302 internal_redirect:via_upstream test-header-value"));
+#else
   EXPECT_THAT(waitForAccessLog(access_log_name_, 0),
               HasSubstr("302 internal_redirect test-header-value"));
+#endif
 
   auto second_request = waitForNextStream();
   // Redirect back to the original route.
   redirect_response_.setLocation(
       "http://handle.internal.redirect.only.allow.safe.cross.scheme.redirect/another/path");
   second_request->encodeHeaders(redirect_response_, true);
+#if defined(HIGRESS)
+  // HIGRESS preserves original response code details, forming "internal_redirect:via_upstream"
+  EXPECT_THAT(waitForAccessLog(access_log_name_, 1),
+              HasSubstr("302 internal_redirect:via_upstream test-header-value"));
+#else
   EXPECT_THAT(waitForAccessLog(access_log_name_, 1),
               HasSubstr("302 internal_redirect test-header-value"));
+#endif
 
   auto third_request = waitForNextStream();
   // Redirect to https target. This should fail.
@@ -296,7 +344,13 @@ TEST_P(RedirectExtensionIntegrationTest, InternalRedirectPreventedBySafeCrossSch
   EXPECT_EQ(
       1,
       test_server_->counter("http.config_test.passthrough_internal_redirect_predicate")->value());
+#if defined(HIGRESS)
+  // In HIGRESS, chargeStats is called during each internal redirect for access logging,
+  // so 3xx counter is incremented for each redirect (2 successful + 1 passthrough = 3).
+  EXPECT_EQ(3, test_server_->counter("http.config_test.downstream_rq_3xx")->value());
+#else
   EXPECT_EQ(1, test_server_->counter("http.config_test.downstream_rq_3xx")->value());
+#endif
   EXPECT_THAT(waitForAccessLog(access_log_name_, 2),
               HasSubstr("302 via_upstream test-header-value"));
   EXPECT_EQ("test-header-value",

@@ -97,6 +97,12 @@ void WebsocketWithCompressorIntegrationTest::validateUpgradeRequestHeaders(
   commonValidate(proxied_request_headers, original_request_headers);
   proxied_request_headers.removeRequestId();
 
+#if defined(HIGRESS)
+  // Remove HIGRESS-specific headers (x-envoy-original-host and req-start-time)
+  proxied_request_headers.remove(Http::LowerCaseString("x-envoy-original-host"));
+  proxied_request_headers.remove(Http::LowerCaseString("req-start-time"));
+#endif
+
   EXPECT_THAT(&proxied_request_headers, HeaderMapEqualIgnoreOrder(&original_request_headers));
 }
 

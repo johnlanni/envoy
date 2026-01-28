@@ -20,6 +20,14 @@ using testing::HasSubstr;
 namespace Envoy {
 namespace {
 
+#if defined(HIGRESS)
+// HIGRESS adds x-envoy-original-host and req-start-time headers, increasing request_headers_bytes
+// by approximately 25 bytes (143 vs 118).
+constexpr int kExpectedRequestHeadersBytes = 143;
+#else
+constexpr int kExpectedRequestHeadersBytes = 118;
+#endif
+
 class AccessLogIntegrationTest : public Grpc::GrpcClientIntegrationParamTest,
                                  public HttpIntegrationTest {
 public:
@@ -150,7 +158,7 @@ http_logs:
       authority: host
       downstream_header_bytes_received: 11
       path: /notfound
-      request_headers_bytes: 118
+      request_headers_bytes: {0}
       request_method: GET
     response:
       downstream_header_bytes_sent: 152
@@ -158,13 +166,14 @@ http_logs:
         value: 404
       response_code_details: "route_not_found"
       response_headers_bytes: 131
-)EOF")));
+)EOF",
+                                                  kExpectedRequestHeadersBytes)));
 
   BufferingStreamDecoderPtr response = IntegrationUtil::makeSingleRequest(
       lookupPort("http"), "GET", "/notfound", "", downstream_protocol_, version_);
   EXPECT_TRUE(response->complete());
   EXPECT_EQ("404", response->headers().getStatusValue());
-  ASSERT_TRUE(waitForAccessLogRequest(R"EOF(
+  ASSERT_TRUE(waitForAccessLogRequest(fmt::format(R"EOF(
 http_logs:
   log_entry:
     common_properties:
@@ -179,7 +188,7 @@ http_logs:
       scheme: http
       authority: host
       path: /notfound
-      request_headers_bytes: 118
+      request_headers_bytes: {0}
       request_method: GET
     response:
       downstream_header_bytes_sent: 152
@@ -187,7 +196,8 @@ http_logs:
         value: 404
       response_code_details: "route_not_found"
       response_headers_bytes: 131
-)EOF"));
+)EOF",
+                                                  kExpectedRequestHeadersBytes)));
 
   // Send an empty response and end the stream. This should never happen but make sure nothing
   // breaks and we make a new stream on a follow up request.
@@ -233,7 +243,7 @@ http_logs:
       scheme: http
       authority: host
       path: /notfound
-      request_headers_bytes: 118
+      request_headers_bytes: {0}
       request_method: GET
     response:
       downstream_header_bytes_sent: 152
@@ -241,7 +251,8 @@ http_logs:
         value: 404
       response_code_details: "route_not_found"
       response_headers_bytes: 131
-)EOF")));
+)EOF",
+                                                  kExpectedRequestHeadersBytes)));
   cleanup();
 }
 

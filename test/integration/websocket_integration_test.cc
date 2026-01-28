@@ -75,6 +75,14 @@ void WebsocketIntegrationTest::validateUpgradeRequestHeaders(
   ASSERT_TRUE(proxied_request_headers.EnvoyExpectedRequestTimeoutMs() != nullptr);
   proxied_request_headers.removeEnvoyExpectedRequestTimeoutMs();
 
+#if defined(HIGRESS)
+  // Remove HIGRESS-specific headers that are added during request processing.
+  proxied_request_headers.remove(Http::LowerCaseString("x-envoy-original-host"));
+  proxied_request_headers.remove(Http::LowerCaseString("req-start-time"));
+  proxied_request_headers.remove(Http::LowerCaseString("req-arrive-time"));
+  proxied_request_headers.remove(Http::LowerCaseString("req-cost-time"));
+#endif
+
   if (proxied_request_headers.Scheme()) {
     ASSERT_EQ(proxied_request_headers.getSchemeValue(), "http");
   } else {
@@ -105,6 +113,11 @@ void WebsocketIntegrationTest::validateUpgradeResponseHeaders(
   ASSERT_EQ(proxied_response_headers.getServerValue(), "envoy");
   proxied_response_headers.removeDate();
   proxied_response_headers.removeServer();
+
+#if defined(HIGRESS)
+  // Remove HIGRESS-specific headers that are added during response processing.
+  proxied_response_headers.remove(Http::LowerCaseString("resp-start-time"));
+#endif
 
   ASSERT_TRUE(proxied_response_headers.TransferEncoding() == nullptr);
 

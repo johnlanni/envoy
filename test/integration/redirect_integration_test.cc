@@ -194,8 +194,14 @@ TEST_P(RedirectIntegrationTest, BasicInternalRedirect) {
   waitForNextUpstreamRequest();
 
   upstream_request_->encodeHeaders(redirect_response_, true);
+#if defined(HIGRESS)
+  // HIGRESS preserves original response code details, forming "internal_redirect:via_upstream"
+  EXPECT_THAT(waitForAccessLog(access_log_name_, 0),
+              HasSubstr("302 internal_redirect:via_upstream test-header-value"));
+#else
   EXPECT_THAT(waitForAccessLog(access_log_name_, 0),
               HasSubstr("302 internal_redirect test-header-value"));
+#endif
 
   waitForNextUpstreamRequest();
   ASSERT(upstream_request_->headers().EnvoyOriginalUrl() != nullptr);
@@ -213,7 +219,13 @@ TEST_P(RedirectIntegrationTest, BasicInternalRedirect) {
   EXPECT_EQ(1, test_server_->counter("cluster.cluster_0.upstream_internal_redirect_succeeded_total")
                    ->value());
   // 302 was never returned downstream
+#if defined(HIGRESS)
+  // In HIGRESS, chargeStats is called during internal redirect for access logging,
+  // so 3xx counter is incremented even for successful internal redirects.
+  EXPECT_EQ(1, test_server_->counter("http.config_test.downstream_rq_3xx")->value());
+#else
   EXPECT_EQ(0, test_server_->counter("http.config_test.downstream_rq_3xx")->value());
+#endif
   EXPECT_EQ(1, test_server_->counter("http.config_test.downstream_rq_2xx")->value());
   // No test header
   EXPECT_THAT(waitForAccessLog(access_log_name_, 1), HasSubstr("200 via_upstream -"));
@@ -250,8 +262,14 @@ TEST_P(RedirectIntegrationTest, ConnectionCloseHeaderHonoredInInternalRedirect) 
   waitForNextUpstreamRequest();
 
   upstream_request_->encodeHeaders(redirect_response_, true);
+#if defined(HIGRESS)
+  // HIGRESS preserves original response code details, forming "internal_redirect:via_upstream"
+  EXPECT_THAT(waitForAccessLog(access_log_name_, 0),
+              HasSubstr("302 internal_redirect:via_upstream test-header-value"));
+#else
   EXPECT_THAT(waitForAccessLog(access_log_name_, 0),
               HasSubstr("302 internal_redirect test-header-value"));
+#endif
 
   waitForNextUpstreamRequest();
   ASSERT(upstream_request_->headers().EnvoyOriginalUrl() != nullptr);
@@ -276,7 +294,13 @@ TEST_P(RedirectIntegrationTest, ConnectionCloseHeaderHonoredInInternalRedirect) 
                    ->value());
 
   // 302 was never returned downstream
+#if defined(HIGRESS)
+  // In HIGRESS, chargeStats is called during internal redirect for access logging,
+  // so 3xx counter is incremented even for successful internal redirects.
+  EXPECT_EQ(1, test_server_->counter("http.config_test.downstream_rq_3xx")->value());
+#else
   EXPECT_EQ(0, test_server_->counter("http.config_test.downstream_rq_3xx")->value());
+#endif
   EXPECT_EQ(1, test_server_->counter("http.config_test.downstream_rq_2xx")->value());
 }
 
@@ -430,8 +454,14 @@ TEST_P(RedirectIntegrationTest, InternalRedirectWithRequestBody) {
 
   // Respond with a redirect.
   upstream_request_->encodeHeaders(redirect_response_, true);
+#if defined(HIGRESS)
+  // HIGRESS preserves original response code details, forming "internal_redirect:via_upstream"
+  EXPECT_THAT(waitForAccessLog(access_log_name_, 0),
+              HasSubstr("302 internal_redirect:via_upstream test-header-value"));
+#else
   EXPECT_THAT(waitForAccessLog(access_log_name_, 0),
               HasSubstr("302 internal_redirect test-header-value"));
+#endif
 
   // Second request to redirected upstream.
   waitForNextUpstreamRequest();
@@ -452,7 +482,13 @@ TEST_P(RedirectIntegrationTest, InternalRedirectWithRequestBody) {
   EXPECT_EQ(1, test_server_->counter("cluster.cluster_0.upstream_internal_redirect_succeeded_total")
                    ->value());
   // 302 was never returned downstream
+#if defined(HIGRESS)
+  // In HIGRESS, chargeStats is called during internal redirect for access logging,
+  // so 3xx counter is incremented even for successful internal redirects.
+  EXPECT_EQ(1, test_server_->counter("http.config_test.downstream_rq_3xx")->value());
+#else
   EXPECT_EQ(0, test_server_->counter("http.config_test.downstream_rq_3xx")->value());
+#endif
   EXPECT_EQ(1, test_server_->counter("http.config_test.downstream_rq_2xx")->value());
   // No test header
   EXPECT_THAT(waitForAccessLog(access_log_name_, 1), HasSubstr("200 via_upstream -"));
@@ -489,8 +525,14 @@ TEST_P(RedirectIntegrationTest, InternalRedirectHandlesHttp303) {
   // Respond with a redirect.
   redirect_response_.setStatus(303);
   upstream_request_->encodeHeaders(redirect_response_, true);
+#if defined(HIGRESS)
+  // HIGRESS preserves original response code details, forming "internal_redirect:via_upstream"
+  EXPECT_THAT(waitForAccessLog(access_log_name_, 0),
+              HasSubstr("303 internal_redirect:via_upstream test-header-value"));
+#else
   EXPECT_THAT(waitForAccessLog(access_log_name_, 0),
               HasSubstr("303 internal_redirect test-header-value"));
+#endif
 
   // Second request to redirected upstream.
   waitForNextUpstreamRequest();
@@ -513,7 +555,13 @@ TEST_P(RedirectIntegrationTest, InternalRedirectHandlesHttp303) {
   EXPECT_EQ(1, test_server_->counter("cluster.cluster_0.upstream_internal_redirect_succeeded_total")
                    ->value());
   // 302 was never returned downstream
+#if defined(HIGRESS)
+  // In HIGRESS, chargeStats is called during internal redirect for access logging,
+  // so 3xx counter is incremented even for successful internal redirects.
+  EXPECT_EQ(1, test_server_->counter("http.config_test.downstream_rq_3xx")->value());
+#else
   EXPECT_EQ(0, test_server_->counter("http.config_test.downstream_rq_3xx")->value());
+#endif
   EXPECT_EQ(1, test_server_->counter("http.config_test.downstream_rq_2xx")->value());
   // No test header
   EXPECT_THAT(waitForAccessLog(access_log_name_, 1), HasSubstr("200 via_upstream -"));
@@ -547,8 +595,14 @@ TEST_P(RedirectIntegrationTest, InternalRedirectHttp303PreservesHeadMethod) {
   // Respond with a redirect.
   redirect_response_.setStatus(303);
   upstream_request_->encodeHeaders(redirect_response_, true);
+#if defined(HIGRESS)
+  // HIGRESS preserves original response code details, forming "internal_redirect:via_upstream"
+  EXPECT_THAT(waitForAccessLog(access_log_name_, 0),
+              HasSubstr("303 internal_redirect:via_upstream test-header-value"));
+#else
   EXPECT_THAT(waitForAccessLog(access_log_name_, 0),
               HasSubstr("303 internal_redirect test-header-value"));
+#endif
 
   // Second request to redirected upstream.
   waitForNextUpstreamRequest();
@@ -570,7 +624,13 @@ TEST_P(RedirectIntegrationTest, InternalRedirectHttp303PreservesHeadMethod) {
   EXPECT_EQ(1, test_server_->counter("cluster.cluster_0.upstream_internal_redirect_succeeded_total")
                    ->value());
   // 302 was never returned downstream
+#if defined(HIGRESS)
+  // In HIGRESS, chargeStats is called during internal redirect for access logging,
+  // so 3xx counter is incremented even for successful internal redirects.
+  EXPECT_EQ(1, test_server_->counter("http.config_test.downstream_rq_3xx")->value());
+#else
   EXPECT_EQ(0, test_server_->counter("http.config_test.downstream_rq_3xx")->value());
+#endif
   EXPECT_EQ(1, test_server_->counter("http.config_test.downstream_rq_2xx")->value());
   // No test header
   EXPECT_THAT(waitForAccessLog(access_log_name_, 1), HasSubstr("200 via_upstream -"));
@@ -683,8 +743,14 @@ TEST_P(RedirectIntegrationTest, InternalRedirectWithThreeHopLimit) {
     redirect_response_.setLocation(next_location);
     upstream_requests.back()->encodeHeaders(redirect_response_, true);
     if (i != 3) {
+#if defined(HIGRESS)
+      // HIGRESS preserves original response code details, forming "internal_redirect:via_upstream"
+      EXPECT_THAT(waitForAccessLog(access_log_name_, i),
+                  HasSubstr("302 internal_redirect:via_upstream test-header-value"));
+#else
       EXPECT_THAT(waitForAccessLog(access_log_name_, i),
                   HasSubstr("302 internal_redirect test-header-value"));
+#endif
     } else {
       EXPECT_THAT(waitForAccessLog(access_log_name_, i),
                   HasSubstr("302 via_upstream test-header-value"));
@@ -700,7 +766,13 @@ TEST_P(RedirectIntegrationTest, InternalRedirectWithThreeHopLimit) {
   EXPECT_EQ(
       1, test_server_->counter("http.config_test.passthrough_internal_redirect_too_many_redirects")
              ->value());
+#if defined(HIGRESS)
+  // In HIGRESS, chargeStats is called during internal redirect for access logging,
+  // so 3xx counter is incremented for each redirect (3 internal + 1 final = 4).
+  EXPECT_EQ(4, test_server_->counter("http.config_test.downstream_rq_3xx")->value());
+#else
   EXPECT_EQ(1, test_server_->counter("http.config_test.downstream_rq_3xx")->value());
+#endif
   EXPECT_EQ("test-header-value",
             response->headers().get(test_header_key_)[0]->value().getStringView());
 }
@@ -730,8 +802,14 @@ TEST_P(RedirectIntegrationTest, InternalRedirectToDestinationWithResponseBody) {
 
   waitForNextUpstreamRequest();
   upstream_request_->encodeHeaders(redirect_response_, true);
+#if defined(HIGRESS)
+  // HIGRESS preserves original response code details, forming "internal_redirect:via_upstream"
+  EXPECT_THAT(waitForAccessLog(access_log_name_, 0),
+              HasSubstr("302 internal_redirect:via_upstream test-header-value"));
+#else
   EXPECT_THAT(waitForAccessLog(access_log_name_, 0),
               HasSubstr("302 internal_redirect test-header-value"));
+#endif
 
   waitForNextUpstreamRequest();
   ASSERT(upstream_request_->headers().EnvoyOriginalUrl() != nullptr);
@@ -752,7 +830,13 @@ TEST_P(RedirectIntegrationTest, InternalRedirectToDestinationWithResponseBody) {
   EXPECT_EQ(1, test_server_->counter("cluster.cluster_0.upstream_internal_redirect_succeeded_total")
                    ->value());
   // 302 was never returned downstream
+#if defined(HIGRESS)
+  // In HIGRESS, chargeStats is called during internal redirect for access logging,
+  // so 3xx counter is incremented even for successful internal redirects.
+  EXPECT_EQ(1, test_server_->counter("http.config_test.downstream_rq_3xx")->value());
+#else
   EXPECT_EQ(0, test_server_->counter("http.config_test.downstream_rq_3xx")->value());
+#endif
   EXPECT_EQ(1, test_server_->counter("http.config_test.downstream_rq_2xx")->value());
   // No test header
   EXPECT_THAT(waitForAccessLog(access_log_name_, 1), HasSubstr("200 via_upstream -"));
@@ -803,10 +887,22 @@ TEST_P(RedirectIntegrationTest, InternalRedirectHandledByDirectResponse) {
   EXPECT_EQ("204", response->headers().getStatusValue());
   test_server_->waitForCounterEq("cluster.cluster_0.upstream_internal_redirect_succeeded_total", 1);
   // 302 was never returned downstream
+#if defined(HIGRESS)
+  // In HIGRESS, chargeStats is called during internal redirect for access logging,
+  // so 3xx counter is incremented even for successful internal redirects.
+  EXPECT_EQ(1, test_server_->counter("http.config_test.downstream_rq_3xx")->value());
+#else
   EXPECT_EQ(0, test_server_->counter("http.config_test.downstream_rq_3xx")->value());
+#endif
   EXPECT_EQ(1, test_server_->counter("http.config_test.downstream_rq_2xx")->value());
+#if defined(HIGRESS)
+  // HIGRESS preserves original response code details, forming "internal_redirect:via_upstream"
+  EXPECT_THAT(waitForAccessLog(access_log_name_, 0, true),
+              HasSubstr("302 internal_redirect:via_upstream test-header-value"));
+#else
   EXPECT_THAT(waitForAccessLog(access_log_name_, 0, true),
               HasSubstr("302 internal_redirect test-header-value"));
+#endif
   // No test header
   EXPECT_THAT(waitForAccessLog(access_log_name_, 1), HasSubstr("204 direct_response -"));
 }
@@ -833,8 +929,14 @@ TEST_P(RedirectIntegrationTest, PreserveOrClearResponseHeaders) {
   waitForNextUpstreamRequest();
 
   upstream_request_->encodeHeaders(redirect_response_, true);
+#if defined(HIGRESS)
+  // HIGRESS preserves original response code details, forming "internal_redirect:via_upstream"
+  EXPECT_THAT(waitForAccessLog(access_log_name_, 0),
+              HasSubstr("302 internal_redirect:via_upstream test-header-value"));
+#else
   EXPECT_THAT(waitForAccessLog(access_log_name_, 0),
               HasSubstr("302 internal_redirect test-header-value"));
+#endif
 
   waitForNextUpstreamRequest();
   ASSERT(upstream_request_->headers().EnvoyOriginalUrl() != nullptr);
@@ -859,7 +961,13 @@ TEST_P(RedirectIntegrationTest, PreserveOrClearResponseHeaders) {
   EXPECT_EQ(1, test_server_->counter("cluster.cluster_0.upstream_internal_redirect_succeeded_total")
                    ->value());
   // 302 was never returned downstream
+#if defined(HIGRESS)
+  // In HIGRESS, chargeStats is called during internal redirect for access logging,
+  // so 3xx counter is incremented even for successful internal redirects.
+  EXPECT_EQ(1, test_server_->counter("http.config_test.downstream_rq_3xx")->value());
+#else
   EXPECT_EQ(0, test_server_->counter("http.config_test.downstream_rq_3xx")->value());
+#endif
   EXPECT_EQ(1, test_server_->counter("http.config_test.downstream_rq_2xx")->value());
   // No test header
   EXPECT_THAT(waitForAccessLog(access_log_name_, 1), HasSubstr("200 via_upstream -"));

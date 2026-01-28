@@ -438,7 +438,11 @@ TEST_F(AwsLambdaFilterTest, DecodeDataWithTextualBodyWithJsonOn) {
     cb(decoded_buf);
   };
   EXPECT_CALL(decoder_callbacks_, decodingBuffer).WillRepeatedly(Return(&decoded_buf));
+#if defined(HIGRESS)
+  EXPECT_CALL(decoder_callbacks_, modifyDecodingBuffer(testing::_))
+#else
   EXPECT_CALL(decoder_callbacks_, modifyDecodingBuffer)
+#endif
       .WillRepeatedly(Invoke(on_modify_decoding_buffer));
 
   std::array<const char*, 4> textual_mime_types = {"application/json", "application/javascript",
@@ -506,7 +510,11 @@ TEST_F(AwsLambdaFilterTest, DecodeDataWithBinaryBodyWithJsonOn) {
   auto on_modify_decoding_buffer = [&decoded_buf](std::function<void(Buffer::Instance&)> cb) {
     cb(decoded_buf);
   };
+#if defined(HIGRESS)
+  EXPECT_CALL(decoder_callbacks_, modifyDecodingBuffer(testing::_))
+#else
   EXPECT_CALL(decoder_callbacks_, modifyDecodingBuffer)
+#endif
       .WillRepeatedly(Invoke(on_modify_decoding_buffer));
   std::array<absl::string_view, 3> binary_mime_types = {"", "application/pdf", "gzipped"};
   for (auto mime_type : binary_mime_types) {

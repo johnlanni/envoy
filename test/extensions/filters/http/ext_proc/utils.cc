@@ -24,7 +24,8 @@ const absl::flat_hash_set<std::string> ExtProcTestUtility::ignoredHeaders() {
   CONSTRUCT_ON_FIRST_USE(absl::flat_hash_set<std::string>, "x-request-id",
 #ifdef HIGRESS
                          "x-envoy-upstream-service-time", "req-cost-time", "req-arrive-time",
-                         "resp-start-time");
+                         "req-start-time", "resp-start-time", "x-envoy-original-host",
+                         "x-envoy-expected-rq-timeout-ms");
 #else
                          "x-envoy-upstream-service-time", "x-envoy-expected-rq-timeout-ms");
 #endif

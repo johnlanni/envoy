@@ -294,6 +294,11 @@ public:
     ON_CALL(stream_info_, upstreamClusterInfo())
         .WillByDefault(
             Return(absl::make_optional<Upstream::ClusterInfoConstSharedPtr>(cluster_info_)));
+
+#if defined(HIGRESS)
+    ON_CALL(stream_info_, getCustomSpanTagMap()).WillByDefault(ReturnRef(custom_span_tags_));
+    ON_CALL(stream_info_, setCustomSpanTag(_, _));
+#endif
   }
 
   Http::TestRequestHeaderMapImpl request_headers_{
@@ -309,6 +314,9 @@ public:
   NiceMock<MockConfig> config_;
   NiceMock<MockDriver>* driver_;
   TracerSharedPtr tracer_;
+#if defined(HIGRESS)
+  absl::flat_hash_map<std::string, std::string> custom_span_tags_;
+#endif
   std::shared_ptr<NiceMock<Upstream::MockClusterInfo>> cluster_info_{
       std::make_shared<NiceMock<Upstream::MockClusterInfo>>()};
   Upstream::MockHostDescription* host_{new NiceMock<Upstream::MockHostDescription>()};
