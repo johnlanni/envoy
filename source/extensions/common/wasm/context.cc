@@ -1035,7 +1035,7 @@ WasmResult Context::setBuffer(WasmBufferType type, size_t start, size_t length,
       if (start == 0 && length >= decoder_callbacks_->decodingBuffer()->length()) {
         backup_for_replace = true;
       }
-      if (buffering_request_body_) {
+      if (buffering_request_body_ || decoder_callbacks_->decodingBuffer() == request_body_buffer_) {
         decoder_callbacks_->modifyDecodingBuffer(
             [&buffer_instance](::Envoy::Buffer::Instance& buffer) { buffer_instance = &buffer; },
             backup_for_replace);
