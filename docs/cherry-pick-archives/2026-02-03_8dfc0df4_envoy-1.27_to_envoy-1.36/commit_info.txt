@@ -1,0 +1,29 @@
+commit 1c5944bd0de730ac8e3e63b4b71f49f4375ffccd
+Author: zty98751 <zty98751@alibaba-inc.com>
+Date:   Thu Nov 27 20:15:26 2025 +0800
+
+    fix: prevent WASM VM accumulation during rebuild by tracking old handle lifetime
+    
+    在 `wasm.cc` 和 `wasm.h` 文件中添加了对旧 Wasm VM 句柄的弱引用检查，以防止在旧句柄仍在使用时创建新的 VM 实例，从而避免内存累积问题。
+    Link: https://code.alibaba-inc.com/Ingress/envoy/codereview/24625193
+    * fix: prevent WASM VM accumulation during rebuild by tracking old handle lifetime
+    
+    The rebuild() function previously allowed creating new VMs even when old VMs
+    were still in use by long-running requests, causing memory accumulation.
+    
+    Changes:
+    - Add weak_ptr<PluginHandle> old_handle_ member to track previous VM instance
+    - Check if old handle is still alive before allowing rebuild
+    - Only permit rebuild when previous VM has been fully released
+    - Store current handle as weak_ptr before replacing with new one
+    
+    This ensures at most one old VM instance exists at any time, preventing
+    unbounded memory growth while maintaining the existing time-based throttling
+    mechanism.
+    
+    Change-Id: Ic7b8afae040d3194a40b1ac703b46e058b8dc74e
+    Co-developed-by: Claude <noreply@anthropic.com>
+
+ source/extensions/common/wasm/wasm.cc | 9 +++++++++
+ source/extensions/common/wasm/wasm.h  | 1 +
+ 2 files changed, 10 insertions(+)

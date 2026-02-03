@@ -1,0 +1,2 @@
+source/extensions/common/wasm/wasm.cc
+source/extensions/common/wasm/wasm.h
