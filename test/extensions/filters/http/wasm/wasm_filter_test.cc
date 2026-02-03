@@ -7,6 +7,7 @@
 #include "test/extensions/common/wasm/wasm_runtime.h"
 #include "test/mocks/network/connection.h"
 #include "test/mocks/router/mocks.h"
+#include "test/mocks/tracing/mocks.h"
 #include "test/test_common/wasm_base.h"
 
 using testing::_;
@@ -99,6 +100,7 @@ public:
 protected:
   NiceMock<Grpc::MockAsyncStream> async_stream_;
   Grpc::MockAsyncClientManager async_client_manager_;
+  NiceMock<Tracing::MockSpan> mock_span_;
 };
 
 INSTANTIATE_TEST_SUITE_P(RuntimesAndLanguages, WasmHttpFilterTest,
@@ -839,9 +841,13 @@ TEST_P(WasmHttpFilterTest, RedisCall) {
     // This feature is not supported in rust
     return;
   }
-
   setupTest("redis_call");
   setupFilter();
+  EXPECT_CALL(decoder_callbacks_, activeSpan())
+      .Times(testing::AtLeast(0))
+      .WillRepeatedly(Invoke([this]() -> Tracing::Span& {
+        return mock_span_;
+      }));
 
   Http::TestRequestHeaderMapImpl request_headers{{":path", "/"}};
   std::string redis_query{"*3\r\n$3\r\nset\r\n$2\r\nid\r\n$1\r\n1\r\n"};
@@ -851,10 +857,12 @@ TEST_P(WasmHttpFilterTest, RedisCall) {
   cluster_manager_.initializeThreadLocalClusters({"cluster"});
 
   EXPECT_CALL(cluster_manager_.thread_local_cluster_, redisAsyncClient());
-  EXPECT_CALL(cluster_manager_.thread_local_cluster_.redis_async_client_, send_(_, _))
+  EXPECT_CALL(cluster_manager_.thread_local_cluster_.redis_async_client_, send_(_, _, _))
       .WillOnce(
-          Invoke([&](std::string& query, Redis::AsyncClient::Callbacks& cb) -> Redis::PoolRequest* {
+          Invoke([&](std::string& query, Redis::AsyncClient::Callbacks& cb, const Redis::AsyncClient::RedisRequestOptions& options) -> Redis::PoolRequest* {
             EXPECT_EQ(redis_query, query);
+            EXPECT_EQ(options.parent_span_, &mock_span_);
+            EXPECT_EQ(options.child_span_name_, "wasm plugin_name rediscall to cluster");
             callbacks = &cb;
             return &redis_request;
           }));
@@ -1046,6 +1054,11 @@ TEST_P(WasmHttpFilterTest, SetEncoderBufferLimit) {
 TEST_P(WasmHttpFilterTest, AsyncCall) {
   setupTest("async_call");
   setupFilter();
+  EXPECT_CALL(decoder_callbacks_, activeSpan())
+      .Times(testing::AtLeast(0))
+      .WillRepeatedly(Invoke([this]() -> Tracing::Span& {
+        return mock_span_;
+      }));
 
   Http::TestRequestHeaderMapImpl request_headers{{":path", "/"}};
   Http::MockAsyncClientRequest request(&cluster_manager_.thread_local_cluster_.async_client_);
@@ -1063,6 +1076,13 @@ TEST_P(WasmHttpFilterTest, AsyncCall) {
                       message->headers());
             EXPECT_EQ((Http::TestRequestTrailerMapImpl{{"trail", "cow"}}), *message->trailers());
             EXPECT_EQ(options.send_xff, false);
+            
+            // Verify that parent span is set correctly
+            EXPECT_EQ(options.parent_span_, &mock_span_);
+            
+            // Verify that child span name is set correctly
+            EXPECT_EQ(options.child_span_name_, "wasm plugin_name httpcall to cluster");
+            
             callbacks = &cb;
             return &request;
           }));
@@ -1096,6 +1116,17 @@ TEST_P(WasmHttpFilterTest, StopAndResumeViaAsyncCall) {
   Http::MockAsyncClientRequest request(&cluster_manager_.thread_local_cluster_.async_client_);
   Http::AsyncClient::Callbacks* callbacks = nullptr;
   cluster_manager_.initializeThreadLocalClusters({"cluster"});
+  
+  Http::MockStreamDecoderFilterCallbacks decoder_callbacks;
+  filter().setDecoderFilterCallbacks(decoder_callbacks);
+  
+  // Setup tracing mock first - no sequence constraints
+  EXPECT_CALL(decoder_callbacks, activeSpan())
+      .Times(testing::AtLeast(0))
+      .WillRepeatedly(Invoke([this]() -> Tracing::Span& {
+        return mock_span_;
+      }));
+
   EXPECT_CALL(cluster_manager_.thread_local_cluster_, httpAsyncClient());
   EXPECT_CALL(cluster_manager_.thread_local_cluster_.async_client_, send_(_, _, _))
       .WillOnce(
@@ -1109,7 +1140,7 @@ TEST_P(WasmHttpFilterTest, StopAndResumeViaAsyncCall) {
             callbacks = &cb;
             return &request;
           }));
-
+      
   EXPECT_CALL(filter(), log_(spdlog::level::info, Eq("onRequestHeaders")))
       .WillOnce(Invoke([&](uint32_t, absl::string_view) -> proxy_wasm::WasmResult {
         Http::ResponseMessagePtr response_message(new Http::ResponseMessageImpl(
@@ -1120,10 +1151,8 @@ TEST_P(WasmHttpFilterTest, StopAndResumeViaAsyncCall) {
         callbacks->onSuccess(request, std::move(response_message));
         return proxy_wasm::WasmResult::Ok;
       }));
+  
   EXPECT_CALL(filter(), log_(spdlog::level::info, Eq("continueRequest")));
-
-  Http::MockStreamDecoderFilterCallbacks decoder_callbacks;
-  filter().setDecoderFilterCallbacks(decoder_callbacks);
   EXPECT_CALL(decoder_callbacks, continueDecoding()).WillOnce(Invoke([&]() {
     // Verify that we're not resuming processing from within Wasm callback.
     EXPECT_EQ(proxy_wasm::current_context_, nullptr);

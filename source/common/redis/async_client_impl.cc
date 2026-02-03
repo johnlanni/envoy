@@ -8,6 +8,7 @@
 #include "source/common/common/assert.h"
 #include "source/common/common/logger.h"
 #include "source/common/stats/utility.h"
+#include "source/common/tracing/tracer_impl.h"
 
 namespace Envoy {
 namespace Redis {
@@ -64,7 +65,8 @@ void AsyncClientImpl::initialize(AsyncClientConfig config) {
   params_ = config.params_;
 }
 
-PoolRequest* AsyncClientImpl::send(std::string&& query, AsyncClient::Callbacks& callbacks) {
+PoolRequest* AsyncClientImpl::send(std::string&& query, AsyncClient::Callbacks& callbacks,
+                                   const AsyncClient::RedisRequestOptions& options) {
   if (cluster_ == nullptr) {
     ASSERT(client_map_.empty());
     ASSERT(host_set_member_update_cb_handle_ == nullptr);
@@ -78,7 +80,7 @@ PoolRequest* AsyncClientImpl::send(std::string&& query, AsyncClient::Callbacks& 
     ENVOY_LOG(debug, "no available host");
     return nullptr;
   }
-  pending_requests_.emplace_back(*this, std::move(query), callbacks);
+  pending_requests_.emplace_back(*this, std::move(query), callbacks, options);
   PendingRequest& pending_request = pending_requests_.back();
   ThreadLocalActiveClientPtr& client = this->threadLocalActiveClient(host);
   pending_request.request_handler_ =
@@ -190,8 +192,26 @@ void AsyncClientImpl::ThreadLocalActiveClient::onEvent(Network::ConnectionEvent 
 
 AsyncClientImpl::PendingRequest::PendingRequest(AsyncClientImpl& parent,
                                                 std::string&& incoming_request,
-                                                Callbacks& callbacks)
-    : parent_(parent), incoming_request_(incoming_request), callbacks_(callbacks) {}
+                                                Callbacks& callbacks,
+                                                const AsyncClient::RedisRequestOptions& options)
+    : parent_(parent), incoming_request_(incoming_request), callbacks_(callbacks) {
+  // Create child span for Redis call tracing
+  if (nullptr != options.parent_span_) {
+    const std::string child_span_name =
+        options.child_span_name_.empty()
+            ? absl::StrCat("redis ", parent_.cluster_name_, " egress")
+            : options.child_span_name_;
+    redis_span_ = options.parent_span_->spawnChild(Tracing::EgressConfig::get(), child_span_name,
+                                                   parent_.dispatcher_.timeSource().systemTime());
+    
+    // Set sampling decision
+    if (options.sampled_.has_value()) {
+      redis_span_->setSampled(options.sampled_.value());
+    }
+  } else {
+    redis_span_ = std::make_unique<Tracing::NullSpan>();
+  }
+}
 
 AsyncClientImpl::PendingRequest::~PendingRequest() {
   if (request_handler_) {
@@ -204,12 +224,29 @@ AsyncClientImpl::PendingRequest::~PendingRequest() {
 }
 
 void AsyncClientImpl::PendingRequest::onResponse(std::string&& response) {
+  // Finish Redis span
+  if (redis_span_) {
+    redis_span_->setTag(Tracing::Tags::get().UpstreamCluster, parent_.cluster_name_);
+    redis_span_->setTag("redis.status", "success");
+    redis_span_->setTag(Tracing::Tags::get().Component, "redis");
+    redis_span_->finishSpan();
+  }
+  
   request_handler_ = nullptr;
   callbacks_.onSuccess(incoming_request_, std::move(response));
   parent_.onRequestCompleted();
 }
 
 void AsyncClientImpl::PendingRequest::onFailure() {
+  // Finish Redis span
+  if (redis_span_) {
+    redis_span_->setTag(Tracing::Tags::get().UpstreamCluster, parent_.cluster_name_);
+    redis_span_->setTag("redis.status", "failure");
+    redis_span_->setTag(Tracing::Tags::get().Component, "redis");
+    redis_span_->setTag(Tracing::Tags::get().Error, Tracing::Tags::get().True);
+    redis_span_->finishSpan();
+  }
+  
   request_handler_ = nullptr;
   callbacks_.onFailure(incoming_request_);
   // refresh_manager is not constructed

@@ -17,6 +17,9 @@
 #include "envoy/network/filter.h"
 #include "envoy/stats/sink.h"
 #include "envoy/thread_local/thread_local.h"
+#if defined(HIGRESS)
+#include "envoy/redis/async_client.h"
+#endif
 
 #include "source/common/buffer/buffer_impl.h"
 #include "source/common/common/assert.h"
@@ -1102,6 +1105,26 @@ WasmResult Context::httpCall(std::string_view cluster, const Pairs& request_head
   hash_policy.Add()->mutable_header()->set_header_name(Http::Headers::get().Host.get());
   options.setHashPolicy(hash_policy);
   options.setSendXff(false);
+
+  // Set parent span for tracing from current Stream Context
+  if (proxy_wasm::current_context_ != nullptr) {
+    auto* current_context = static_cast<Context*>(proxy_wasm::current_context_);
+    // Try to get span from decoder_callbacks_ first, then encoder_callbacks_
+    if (current_context->decoder_callbacks_) {
+      auto& span = current_context->decoder_callbacks_->activeSpan();
+      options.setParentSpan(span);
+    } else if (current_context->encoder_callbacks_) {
+      auto& span = current_context->encoder_callbacks_->activeSpan();
+      options.setParentSpan(span);
+    }
+  }
+  
+  // Set child span name with plugin and cluster information
+  if (plugin()) {
+    std::string child_span_name = absl::StrCat("wasm ", plugin()->name_, " httpcall to ", cluster_string);
+    options.setChildSpanName(child_span_name);
+  }
+
   auto http_request =
       thread_local_cluster->httpAsyncClient().send(std::move(message), handler, options);
   if (!http_request) {
@@ -1150,7 +1173,23 @@ WasmResult Context::redisCall(std::string_view cluster, std::string_view query,
   handler.context_ = this;
   handler.token_ = token;
 
-  auto redis_request = thread_local_cluster->redisAsyncClient().send(std::string(query), handler);
+  // Set Redis request options for tracing
+  Redis::AsyncClient::RedisRequestOptions options;
+  if (proxy_wasm::current_context_ != nullptr) {
+    auto* current_context = static_cast<Context*>(proxy_wasm::current_context_);
+    if (current_context->decoder_callbacks_) {
+      options.setParentSpan(current_context->decoder_callbacks_->activeSpan());
+    } else if (current_context->encoder_callbacks_) {
+      options.setParentSpan(current_context->encoder_callbacks_->activeSpan());
+    }
+  }
+  
+  if (plugin()) {
+    std::string child_span_name = absl::StrCat("wasm ", plugin()->name_, " rediscall to ", cluster_string);
+    options.setChildSpanName(child_span_name);
+  }
+
+  auto redis_request = thread_local_cluster->redisAsyncClient().send(std::string(query), handler, options);
   if (!redis_request) {
     redis_request_.erase(token);
     return WasmResult::InternalFailure;

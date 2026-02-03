@@ -1,0 +1,6 @@
+envoy/redis/async_client.h
+source/common/redis/async_client_impl.cc
+source/common/redis/async_client_impl.h
+source/extensions/common/wasm/context.cc
+test/extensions/filters/http/wasm/wasm_filter_test.cc
+test/mocks/redis/mocks.h
