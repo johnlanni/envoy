@@ -496,7 +496,7 @@ void ActiveStreamDecoderFilter::modifyDecodingBuffer(
   const auto& metadata = streamInfo().dynamicMetadata();
   auto it = metadata.filter_metadata().find("envoy.filters.http.custom_response");
     if (it != metadata.filter_metadata().end()) {
-        const ProtobufWkt::Struct& fields = it->second;
+        const Protobuf::Struct& fields = it->second;
         auto field_it = fields.fields().find("need_fallback");
         if (field_it != fields.fields().end() && field_it->second.has_bool_value()) {
             need_fallback = field_it->second.bool_value();
