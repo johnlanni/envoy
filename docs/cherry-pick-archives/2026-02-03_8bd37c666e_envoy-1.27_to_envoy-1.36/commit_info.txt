@@ -1,0 +1,21 @@
+commit 8bd37c666e0a8f5615198bcc82369f63647e183a
+Author: zty98751 <zty98751@alibaba-inc.com>
+Date:   Tue Dec 16 10:00:24 2025 +0800
+
+    Optimize wasm fail recovery rebuild logic
+    
+    在 `wasm.cc` 文件中，修改了一个条件判断以支持故障恢复场景，跳过对 `old_handle_` 是否过期的检查，从而确保恢复过程可以顺利进行。
+    Link: https://code.alibaba-inc.com/Ingress/envoy/codereview/24789626
+    * Optimize wasm fail recovery rebuild logic
+    
+    Skip old_handle_.expired() check for fail recovery scenarios to ensure
+    recovery always proceeds when the VM crashes. This prevents fail recovery
+    from being blocked by lingering old handle references.
+    
+    🤖 Generated with [Qoder][https://qoder.com]
+    
+    Change-Id: I44e2aa0592f7a843039434fbc33a20d5c6288f26
+    Co-developed-by: Qoder CLI <noreply@qoder.com>
+
+ source/extensions/common/wasm/wasm.cc | 5 +++--
+ 1 file changed, 3 insertions(+), 2 deletions(-)
