@@ -4,7 +4,7 @@
 #include "source/extensions/common/wasm/wasm.h"
 
 // Forward declarations for global functions defined in conn_manager_impl.cc
-#if defined(ALIMESH)
+#if defined(HIGRESS)
 namespace Envoy {
 namespace Http {
 uint64_t setGlobalMaxRequestsPerIoCycleForWasm(uint64_t value);

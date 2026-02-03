@@ -138,15 +138,15 @@ void SdsApi::onConfigUpdate(const std::vector<Config::DecodedResourceRef>& added
 }
 
 void SdsApi::onConfigUpdateFailed(Envoy::Config::ConfigUpdateFailureReason reason,
-#if defined(ALIMESH)
+#if defined(HIGRESS)
                                   const EnvoyException* e) {
 #else
                                   const EnvoyException*) {
 #endif
   ASSERT(Envoy::Config::ConfigUpdateFailureReason::ConnectionFailure != reason);
-#if defined(ALIMESH)
-  ENVOY_LOG_MISC(error, "Failed to update secret '{}': reason={}, details={}",
-                 sds_config_name_, static_cast<int>(reason), e ? e->what() : "unknown");
+#if defined(HIGRESS)
+  ENVOY_LOG_MISC(error, "Failed to update secret '{}': reason={}, details={}", sds_config_name_,
+                 static_cast<int>(reason), e ? e->what() : "unknown");
 #endif
   // We need to allow server startup to continue, even if we have a bad config.
   init_target_.ready();

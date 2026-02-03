@@ -50,7 +50,7 @@ TEST_F(ForeignTest, ForeignFunctionEdgeCaseTest) {
   result = function(wasm, "", [](size_t size) { return malloc(size); });
   EXPECT_EQ(result, WasmResult::BadArgument);
 
-#ifdef ALIMESH
+#ifdef HIGRESS
   function = proxy_wasm::getForeignFunction("get_log_level");
   ASSERT_NE(function, nullptr);
   void* result_ptr = nullptr;

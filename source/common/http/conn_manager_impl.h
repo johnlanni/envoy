@@ -119,7 +119,7 @@ public:
   void setClearHopByHopResponseHeaders(bool value) { clear_hop_by_hop_response_headers_ = value; }
   bool clearHopByHopResponseHeaders() const { return clear_hop_by_hop_response_headers_; }
 
-#if defined(ALIMESH)
+#if defined(HIGRESS)
   // Static methods to get/set the global maximum requests per I/O cycle.
   // These can be called by Wasm modules via foreign functions to dynamically control
   // the global request rate limit.
@@ -132,7 +132,8 @@ private:
   void registerGlobalResetWatchers();
 
   // Static callback for evwatch_prepare_new
-  static void onEventLoopPrepareForGlobalReset(evwatch*, const evwatch_prepare_cb_info* info, void* arg);
+  static void onEventLoopPrepareForGlobalReset(evwatch*, const evwatch_prepare_cb_info* info,
+                                               void* arg);
 #endif
 
   // This runtime key configures the number of streams which must be closed on a connection before
@@ -143,7 +144,7 @@ private:
   // prematurely closed.
   static const absl::string_view PrematureResetMinStreamLifetimeSecondsKey;
   static const absl::string_view MaxRequestsPerIoCycle;
-#if defined(ALIMESH)
+#if defined(HIGRESS)
   // Runtime key for global maximum number of requests that can be processed from all connections
   // per I/O cycle on this thread. Requests over this limit are deferred until the next I/O cycle.
   static const absl::string_view MaxTotalRequestsPerIoCycle;
@@ -664,7 +665,7 @@ private:
   const uint32_t max_requests_during_dispatch_{UINT32_MAX};
   Event::SchedulableCallbackPtr deferred_request_processing_callback_;
 
-#if defined(ALIMESH)
+#if defined(HIGRESS)
   // Thread-local global request limiting variables.
   // These are shared across all ConnectionManagerImpl instances on this thread.
   static thread_local uint64_t global_requests_during_current_event_loop_;

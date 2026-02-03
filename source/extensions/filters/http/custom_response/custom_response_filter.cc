@@ -56,7 +56,7 @@ Http::FilterHeadersStatus CustomResponseFilter::decodeHeaders(Http::RequestHeade
   return Http::FilterHeadersStatus::Continue;
 }
 
-#if defined(ALIMESH)
+#if defined(HIGRESS)
 Http::FilterDataStatus CustomResponseFilter::decodeData(Buffer::Instance&, bool) {
   if (!has_checked_) {
     const FilterConfig* config = nullptr;

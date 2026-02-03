@@ -23,7 +23,7 @@ public:
 
   ::Envoy::Http::FilterDataStatus decodeData(Buffer::Instance&, bool) override;
 
-#if defined(ALIMESH)
+#if defined(HIGRESS)
   ::Envoy::Http::FilterHeadersStatus encodeHeaders(::Envoy::Http::ResponseHeaderMap& headers,
                                                    bool end_stream) override;
 #endif

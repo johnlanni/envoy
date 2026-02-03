@@ -68,7 +68,7 @@ const absl::string_view ConnectionManagerImpl::PrematureResetMinStreamLifetimeSe
 // I/O cycle. Requests over this limit are deferred until the next I/O cycle.
 const absl::string_view ConnectionManagerImpl::MaxRequestsPerIoCycle =
     "http.max_requests_per_io_cycle";
-#if defined(ALIMESH)
+#if defined(HIGRESS)
 // Runtime key for global maximum number of requests that can be processed from all connections
 // per I/O cycle on this thread. Requests over this limit are deferred until the next I/O cycle.
 const absl::string_view ConnectionManagerImpl::MaxTotalRequestsPerIoCycle =
@@ -146,7 +146,7 @@ ConnectionManagerImpl::ConnectionManagerImpl(ConnectionManagerConfig& config,
       max_requests_during_dispatch_(
           runtime_.snapshot().getInteger(ConnectionManagerImpl::MaxRequestsPerIoCycle, UINT32_MAX)),
       refresh_rtt_after_request_(
-#if defined(ALIMESH)
+#if defined(HIGRESS)
           Runtime::runtimeFeatureEnabled("envoy.reloadable_features.refresh_rtt_after_request")) {
   // Initialize global request limit from runtime configuration.
   // Runtime value always takes priority if configured (not UINT64_MAX).
@@ -176,7 +176,7 @@ void ConnectionManagerImpl::initializeReadFilterCallbacks(Network::ReadFilterCal
         dispatcher_->createSchedulableCallback([this]() -> void { onDeferredRequestProcessing(); });
   }
 
-#if defined(ALIMESH)
+#if defined(HIGRESS)
   // Register event loop watchers to reset global counter at the start of each iteration.
   // This is only registered once per thread (shared by all ConnectionManagerImpl instances).
   if (global_max_requests_per_io_cycle_ != UINT64_MAX && !global_reset_watchers_registered_) {
@@ -2356,7 +2356,7 @@ bool ConnectionManagerImpl::ActiveStream::onDeferredRequestProcessing() {
     return false;
   }
   state_.deferred_to_next_io_iteration_ = false;
-#if defined(ALIMESH)
+#if defined(HIGRESS)
   // Decrement deferred gauge as this stream is now being processed
   connection_manager_.stats_.named_.downstream_rq_deferred_.dec();
 #endif
@@ -2388,7 +2388,7 @@ bool ConnectionManagerImpl::shouldDeferRequestProxyingToNextIoCycle() {
   if (deferred_request_processing_callback_->enabled()) {
     return true;
   }
-#if defined(ALIMESH)
+#if defined(HIGRESS)
   // Check global limit first (if enabled).
   // The global counter is reset at the start of each event loop iteration via prepare watcher.
   if (global_max_requests_per_io_cycle_ != UINT64_MAX) {
@@ -2415,7 +2415,7 @@ bool ConnectionManagerImpl::shouldDeferRequestProxyingToNextIoCycle() {
   bool defer = requests_during_dispatch_count_ > max_requests_during_dispatch_;
   if (defer) {
     deferred_request_processing_callback_->scheduleCallbackNextIteration();
-#if defined(ALIMESH)
+#if defined(HIGRESS)
     stats_.named_.downstream_rq_deferred_.inc();
 #endif
   }
@@ -2426,7 +2426,7 @@ void ConnectionManagerImpl::onDeferredRequestProcessing() {
   if (streams_.empty()) {
     return;
   }
-#if defined(ALIMESH)
+#if defined(HIGRESS)
   // Check if global limit is already exceeded by other connections in this I/O cycle.
   // If so, we need to defer again and not process any streams.
   if (global_max_requests_per_io_cycle_ != UINT64_MAX &&
@@ -2454,7 +2454,7 @@ void ConnectionManagerImpl::onDeferredRequestProcessing() {
   } while (!at_first_element);
 }
 
-#if defined(ALIMESH)
+#if defined(HIGRESS)
 // Static methods for ConnectionManagerImpl to get/set the global maximum requests per I/O cycle.
 uint64_t ConnectionManagerImpl::getGlobalMaxRequestsPerIoCycle() {
   return global_max_requests_per_io_cycle_;

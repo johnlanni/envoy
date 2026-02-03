@@ -17,7 +17,7 @@
 #include "envoy/network/filter.h"
 #include "envoy/stats/sink.h"
 #include "envoy/thread_local/thread_local.h"
-#if defined(ALIMESH)
+#if defined(HIGRESS)
 #include "envoy/redis/async_client.h"
 #endif
 
@@ -1119,7 +1119,7 @@ WasmResult Context::httpCall(std::string_view cluster, const Pairs& request_head
   options.setHashPolicy(hash_policy);
   options.setSendXff(false);
 
-#ifdef ALIMESH
+#ifdef HIGRESS
   // Set parent span for tracing from current Stream Context
   if (proxy_wasm::current_context_ != nullptr) {
     auto* current_context = static_cast<Context*>(proxy_wasm::current_context_);
