@@ -1,0 +1,339 @@
+f779ec36c711b809731b85bcc3ceab73c35f3cba
+zty98751 <zty98751@alibaba-inc.com>
+Tue Feb 3 22:01:41 2026 +0800
+fix: add conn_manager_lib dependency to wasm tests
+Add //source/common/http:conn_manager_lib to wasm test dependencies
+(foreign_test, context_test, wasm_test) to resolve linker errors for
+setGlobalMaxRequestsPerIoCycleForWasm and getGlobalMaxRequestsPerIoCycleForWasm.
+
+These functions are defined in conn_manager_impl.cc and called by
+foreign.cc (which is part of wasm_lib), so tests linking wasm_lib
+need to also link conn_manager_lib.
+
+Fixes linker errors:
+  - undefined symbol: setGlobalMaxRequestsPerIoCycleForWasm
+  - undefined symbol: getGlobalMaxRequestsPerIoCycleForWasm
+
+Change-Id: I7e163ae0af481919a6d2e7f6b59f336ee6ec5f76
+Co-developed-by: Cursor <noreply@cursor.com>
+
+---
+4acf702ebf91400f4d61c627e878544cb30188d7
+zty98751 <zty98751@alibaba-inc.com>
+Tue Feb 3 21:50:03 2026 +0800
+fix: replace ProtobufWkt with Protobuf in custom_response_filter.cc
+Replace ProtobufWkt with Protobuf in custom_response_filter.cc for
+envoy-1.36 compatibility (lines 33, 74).
+
+Error:
+  source/extensions/filters/http/custom_response/custom_response_filter.cc:33:7:
+  error: use of undeclared identifier 'ProtobufWkt'; did you mean 'Protobuf'?
+
+Fixed:
+  ProtobufWkt::Struct -> Protobuf::Struct
+
+Change-Id: Ie2826589f7a9ff1a840d176edaa5a29373e8db11
+Co-developed-by: Cursor <noreply@cursor.com>
+
+---
+cdd7699dc925641b9825108c420275a62dc7f41a
+zty98751 <zty98751@alibaba-inc.com>
+Tue Feb 3 21:39:15 2026 +0800
+fix: replace ProtobufWkt with Protobuf for envoy-1.36 compatibility
+In envoy-1.36, the namespace alias changed from ProtobufWkt to Protobuf.
+Update filter_manager.cc to use the correct namespace.
+
+Error:
+  source/common/http/filter_manager.cc:499:15: error: use of undeclared
+  identifier 'ProtobufWkt'; did you mean 'Protobuf'?
+
+Fixed:
+  ProtobufWkt::Struct -> Protobuf::Struct
+
+Change-Id: Ib087e16001c82b298be2f63821d96bb20caf54b7
+Co-developed-by: Cursor <noreply@cursor.com>
+
+---
+43c441f9ac33363bf2313e83fe3a20c6fa511e27
+zty98751 <zty98751@alibaba-inc.com>
+Tue Feb 3 21:20:22 2026 +0800
+chore: replace ALIMESH macro with HIGRESS
+Replace all occurrences of ALIMESH macro with HIGRESS for consistency
+across the codebase.
+
+Files modified:
+- source/common/secret/sds_api.cc
+- source/extensions/filters/http/custom_response/custom_response_filter.cc
+- source/extensions/filters/http/custom_response/custom_response_filter.h
+- test/extensions/common/wasm/foreign_test.cc
+
+Change-Id: I75ee1a907080dd21e9017376ddbd36019d397e45
+Co-developed-by: Cursor <noreply@cursor.com>
+
+---
+025bc2e721c56556560a674bf3a4320f02d8064b
+zty98751 <zty98751@alibaba-inc.com>
+Tue Feb 3 16:08:41 2026 +0800
+remove useless func
+Change-Id: Ia06895549f79ca2c04effc155e1163affdf7458f
+
+---
+16275c9ba156504b681cb6326ce77c0feb3b3ec1
+yucheng.lxr <yucheng.lxr@alibaba-inc.com>
+Thu Jan 29 10:35:38 2026 +0800
+Merge branch bugfix-modify-decoding-buffer into develop Title: bugfix for not entering modifyDecodingBuffer
+https://code.alibaba-inc.com/Ingress/envoy/commit/8fb92de279a8a9d471a207930b5e5848155f0ca6 中关于部分情况下缓冲区清空bug的修复引入了新的问题：
+
+在多个wasm插件中，如果前一个wasm插件缓存了request body，那么后面的wasm插件会收到完整的body以及endOfStream，此时后面的wasm插件在body阶段不会返回 Http::FilterDataStatus::StopIterationAndBuffer 导致 buffering_request_body_ 为 false，因此不会进入 modifyDecodingBuffer，这时不会触发原始body的缓存，导致fallback机制失效
+Link: https://code.alibaba-inc.com/Ingress/envoy/codereview/25730535
+
+---
+85cb2be5fba2bcc64392e15590334f85ef184ffc
+zty98751 <zty98751@alibaba-inc.com>
+Tue Jan 20 17:20:05 2026 +0800
+feat: add global request limit per I/O cycle with Wasm foreign function support
+这些改动在 `Envoy` 中引入了一个全局请求速率限制机制，允许通过运行时配置或 Wasm 模块动态控制单个 I/O 循环中所有连接的最大请求数量。
+Link: https://code.alibaba-inc.com/Ingress/envoy/codereview/25289710
+* feat: add global request limit per I/O cycle with Wasm foreign function support
+
+Implement global-level request limiting per I/O cycle to complement the existing
+per-connection limit, preventing system overload when multiple connections are active.
+
+Features:
+- Add thread-local global counter shared across all connections on each thread
+- New runtime key: http.max_total_requests_per_io_cycle
+- Wasm foreign functions: set_global_max_requests_per_io_cycle, get_global_max_requests_per_io_cycle
+- Global counter resets at the start of each event loop iteration
+- Protection against runtime override when value is set via Wasm
+
+Implementation details:
+- Both limits work independently; either being triggered defers request processing
+- Global limit check happens before per-connection limit check
+- Thread-local design ensures no synchronization overhead
+- Value set via Wasm is preserved across ConnectionManagerImpl construction
+
+Tests:
+- GlobalRequestsPerIoCycleLimitSingleConnection: verify global limit defers requests
+- GlobalRequestsPerIoCycleLimitOnly: test global limit without per-connection limit
+- PerConnectionLimitTakesPrecedence: verify per-connection limit when lower
+- GlobalRequestsPerIoCycleLimitDisabled: test with global limit disabled
+- BothLimitsDisabled: verify normal operation when both limits disabled
+
+Change-Id: I1c7e2a440ac85f30dfc200191abb0cfbee7ea657
+Co-developed-by: Claude <noreply@anthropic.com>
+
+* fix: add null pointer check in get_global_max_requests_per_io_cycle foreign function
+
+Add null pointer check before dereferencing the pointer returned by alloc_result
+to prevent potential undefined behavior (segmentation fault) if memory allocation fails.
+
+Return WasmResult::InvalidMemoryAccess when alloc_result returns nullptr.
+
+Change-Id: If86c034a08d71332668fc3a4cf6a028bfcf1c09a
+Co-developed-by: Claude <noreply@anthropic.com>
+
+* feat: only allow lowering global request limit, not raising it
+
+Implement a "most restrictive wins" policy for the global request limit per I/O cycle.
+When a plugin tries to set a higher value, it is rejected to maintain system safety.
+
+This ensures:
+- Plugins cannot override with less restrictive limits
+- The lowest limit among all plugins is always enforced
+- System protection against misconfigured or malicious plugins
+
+Behavior:
+- New value < current value: Update (lower the limit)
+- New value >= current value: Reject (keep existing lower limit)
+
+Logging:
+- Update: info level with "(lowered)" suffix
+- Reject: debug level with detailed comparison
+
+Change-Id: I0fd91a0c83285b32ef2d06ed7b20f9917afd77ef
+Co-developed-by: Claude <noreply@anthropic.com>
+
+* feat: prevent runtime from overriding values set via setGlobalMaxRequestsPerIoCycle
+
+Add a flag to track whether the global max requests per I/O cycle value was set
+via the static function setGlobalMaxRequestsPerIoCycle(). Once set via this function,
+runtime configuration will no longer override the value.
+
+Behavior:
+- Runtime can set the initial value
+- setGlobalMaxRequestsPerIoCycle() can override runtime values (only lower values)
+- Once set via setGlobalMaxRequestsPerIoCycle(), runtime cannot override again
+
+This ensures that explicitly configured values (e.g., via Wasm plugins) are
+protected from being changed by subsequent runtime configuration updates.
+
+Change-Id: I9564d4a5849ade327648a13876583f6e5ee999b9
+Co-developed-by: Claude <noreply@anthropic.com>
+
+* fix typo
+
+Change-Id: I6a847c0877410b6734d6c7797a5f991d31ed7c1f
+Signed-off-by: zty98751 <zty98751@alibaba-inc.com>
+
+* refactor: remove flag, let runtime value always take priority
+
+Remove the global_max_requests_explicitly_set_ flag and simplify the logic:
+- Runtime value always takes priority if configured (not UINT64_MAX)
+- setGlobalMaxRequestsPerIoCycle can only set lower values
+- No flag tracking needed anymore
+
+This gives runtime configuration full control while still allowing
+setGlobalMaxRequestsPerIoCycle to provide a default limit when runtime
+is not configured.
+
+Change-Id: I9922923ceea4bb0d7c0f2ca2a3d95b9780fdf6df
+Co-developed-by: Claude <noreply@anthropic.com>
+
+* feat: add gauge metric for tracking deferred requests due to rate limiting
+
+Add downstream_rq_deferred gauge to monitor the number of requests currently
+queued (deferred) due to hitting the max_requests_per_io_cycle or
+max_total_requests_per_io_cycle limits.
+
+Implementation:
+- Increment gauge when a request is deferred in shouldDeferRequestProxyingToNextIoCycle()
+- Decrement gauge in two places:
+  1. onDeferredRequestProcessing(): when deferred request is processed
+  2. completeRequest(): when request completes while still in deferred state
+
+The deferred_to_next_io_iteration_ flag ensures no double-decrement:
+- Set to false in onDeferredRequestProcessing() before decrement
+- completeRequest() only decrements if flag is still true
+
+This provides visibility into how many requests are waiting to be processed
+due to rate limiting, helping operators tune their limits and understand
+system behavior under load.
+
+Change-Id: Iabfc9be31a7850f1e787baa114ac4339e3cbbfc6
+Co-developed-by: Claude <noreply@anthropic.com>
+
+* feat: use libevent evwatch to reset global counter at event loop start
+
+Replace the post callback mechanism with libevent's evwatch prepare mechanism
+to ensure the global request counter is reset at the start of each event loop
+iteration, before I/O polling occurs.
+
+This fixes the issue where deferred requests were being processed before the
+counter was reset, causing them to be immediately deferred again due to stale
+counter values.
+
+Implementation:
+- Use evwatch_prepare_new() to register a prepare watcher callback
+- The callback runs at step 2 of the event loop iteration (before I/O poll)
+- Deferred requests run at step 6 (after timers), so counter is reset first
+
+Changes:
+- Remove global_reset_callback_ (SchedulableCallbackPtr)
+- Add registerGlobalResetWatchers() method
+- Add onEventLoopPrepareForGlobalReset() static callback
+- Add global_reset_watchers_registered_ flag
+- Add forward declarations for evwatch and evwatch_prepare_cb_info
+- Add include for event2/watch.h and source/common/event/dispatcher_impl.h
+- Add debug logs for counter value changes
+
+Event loop order (from libevent):
+1. Calculate poll timeout
+2. Run prepare callbacks ← Reset happens here
+3. Poll for fd events
+4. Run check callbacks
+5. Check timers
+6. Execute work items ← Deferred requests run here
+
+Debug logs added:
+- On reset: "global_requests_during_current_event_loop_ reset: X -> 0"
+- On increment: "global_requests_during_current_event_loop_ incremented: X -> Y (max=Z)"
+
+Change-Id: I99228f13b335d8fd184ffa8adb70c7d252cde0c5
+Co-developed-by: Claude <noreply@anthropic.com>
+
+* remove UT
+
+Change-Id: I532e11b288bb16b14b2d5ddab63dfb8e63fa46e0
+
+* merge develop
+
+Change-Id: If2f20d7624509f82ae3ce4566c4f272277252714
+
+---
+d43b411ed0e1be6e05a3c8537f73623a5b80c9c6
+zty98751 <zty98751@alibaba-inc.com>
+Tue Jan 20 16:49:43 2026 +0800
+fix(wasm): avoid clearing buffer when not modifying it
+问题描述
+
+  这是一个关于 WASM 过滤器请求数据缓冲区处理 的 bug 修复。
+
+  核心问题：
+  modifyDecodingBuffer 函数会执行两个操作：
+  1. 将原始缓冲区移动到内部缓冲区
+  2. 清空当前缓冲区
+
+  这在需要修改缓冲区时是正确的行为，但原来的逻辑存在一个问题：即使不需要修改数据，也会调用这个函数，导致缓冲区被意外清空，造成数据丢失。
+Link: https://code.alibaba-inc.com/Ingress/envoy/codereview/25492862
+* fix(wasm): avoid clearing buffer when not modifying it
+
+The modifyDecodingBuffer call moves the original buffer to an
+internal buffer and clears the current buffer. This is correct when
+the buffer will be modified, but the original logic could clear the
+buffer even when no modifications were planned, leading to data loss.
+
+Only call modifyDecodingBuffer when buffering_request_body_ is true,
+which indicates the buffer will actually be modified.
+
+Change-Id: I059d1dc844f15985846cd7d07f101d8f0290966c
+Co-developed-by: Claude <noreply@anthropic.com>
+
+---
+6a067cced4f9fd064e279e35776d3c7f3ff9ff7f
+yucheng.lxr <yucheng.lxr@alibaba-inc.com>
+Tue Jan 20 16:26:43 2026 +0800
+envoy ai相关功能内存优化
+1. fallback场景：当前所有请求都会缓存一份原始body，改进后只有需要fallback的请求才会缓存一份原始body，减少内存压力
+2. 基于 Envoy Foreign Function 对 Wasm 暴露当前日志等级，配合wasm sdk实现日志前置拦截
+Link: https://code.alibaba-inc.com/Ingress/envoy/codereview/25410146
+* [bailian] remove original_buffered_request_data_
+
+Change-Id: Ib7f81771eef5cb5c81146cdf1fed2c6e9d528d04
+Co-developed-by: Cursor <noreply@cursor.com>
+
+* update
+
+Change-Id: I57e30abfcd2b12ed5512fc75e960a9373025d41f
+Co-developed-by: Cursor <noreply@cursor.com>
+
+* update
+
+Change-Id: I4c87d2aba1880a6460cffae8aebd0aa2cd3fa353
+Co-developed-by: Cursor <noreply@cursor.com>
+
+* expose logLevel to wasm
+
+Change-Id: Ic8d01cfd02346c71d03a8a95d33be2cafbdc89cb
+Co-developed-by: Cursor <noreply@cursor.com>
+
+* update
+
+Change-Id: Ib7fc93b1e5ea74c5d983c503f297a529fabeba76
+Co-developed-by: Cursor <noreply@cursor.com>
+
+* update
+
+Change-Id: I74d1a962c8f2297615761e3e982132e59f728966
+Co-developed-by: Cursor <noreply@cursor.com>
+
+* update
+
+Change-Id: Ie1d8a0524db6273796b12648dfc72590d7e2b822
+Co-developed-by: Cursor <noreply@cursor.com>
+
+* add ut
+
+Change-Id: I922158ae6134a08c3ea8353941ac10a576c4e1a5
+Co-developed-by: Cursor <noreply@cursor.com>
+
+---
