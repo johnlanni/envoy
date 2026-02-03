@@ -1,0 +1,42 @@
+commit b7e82675babfe65283fbd4945a07c8c65f43107c
+Author: zty98751 <zty98751@alibaba-inc.com>
+Date:   Tue Feb 3 19:53:23 2026 +0800
+
+    support wasm tracing in http call and redis call
+    
+    This commit adds distributed tracing support for Wasm filters when making
+    HTTP and Redis calls. Key changes include:
+    
+    1. HTTP Call Tracing:
+       - Set parent span from current stream context (decoder/encoder callbacks)
+       - Set child span name with plugin and cluster information
+       - Format: "wasm <plugin_name> httpcall to <cluster>"
+    
+    2. Redis Call Tracing:
+       - Add RedisRequestOptions parameter to send() method
+       - Set parent span and child span name similar to HTTP calls
+       - Format: "wasm <plugin_name> rediscall to <cluster>"
+    
+    3. Test Updates:
+       - Add mock span setup in test cases
+       - Verify parent span and child span name are set correctly
+       - Update Redis mock to accept RedisRequestOptions parameter
+    
+    4. Macro Consistency:
+       - Replace ALIMESH macro with HIGRESS for consistency with target branch
+       - Remove conditional compilation guards from httpCall tracing code
+    
+    Original commit: 8232d4ecfdf2f3d5de935fc817f1f04c905ace78
+    Cherry-picked from: envoy-1.27
+    Target branch: envoy-1.36
+    
+    Change-Id: I87e6cc2151739bb7c647c86264e4004f509885a3
+    Co-developed-by: Cursor <noreply@cursor.com>
+
+ envoy/redis/async_client.h                         | 41 +++++++++++++++++++-
+ source/common/redis/async_client_impl.cc           | 45 ++++++++++++++++++++--
+ source/common/redis/async_client_impl.h            |  7 +++-
+ source/extensions/common/wasm/context.cc           | 41 +++++++++++++++++++-
+ .../filters/http/wasm/wasm_filter_test.cc          | 43 +++++++++++++++++----
+ test/mocks/redis/mocks.h                           |  7 ++--
+ 6 files changed, 166 insertions(+), 18 deletions(-)
