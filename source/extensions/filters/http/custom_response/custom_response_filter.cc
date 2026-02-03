@@ -30,7 +30,7 @@ Http::FilterHeadersStatus CustomResponseFilter::decodeHeaders(Http::RequestHeade
     if (config->withRequestBody() && !Http::Utility::isWebSocketUpgradeRequest(header_map) &&
         !Http::Utility::isH2UpgradeRequest(header_map) &&
         !Grpc::Common::isGrpcRequestHeaders(header_map)) {
-      ProtobufWkt::Struct metadata;
+      Protobuf::Struct metadata;
       auto& fields = *metadata.mutable_fields();
       fields["need_fallback"].set_bool_value(true);
       decoder_callbacks_->streamInfo().setDynamicMetadata("envoy.filters.http.custom_response",
@@ -71,7 +71,7 @@ Http::FilterDataStatus CustomResponseFilter::decodeData(Buffer::Instance&, bool)
         !Http::Utility::isWebSocketUpgradeRequest(*downstream_headers_) &&
         !Http::Utility::isH2UpgradeRequest(*downstream_headers_) &&
         !Grpc::Common::isGrpcRequestHeaders(*downstream_headers_)) {
-      ProtobufWkt::Struct metadata;
+      Protobuf::Struct metadata;
       auto& fields = *metadata.mutable_fields();
       fields["need_fallback"].set_bool_value(true);
       decoder_callbacks_->streamInfo().setDynamicMetadata("envoy.filters.http.custom_response",
