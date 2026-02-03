@@ -1014,7 +1014,6 @@ void ConnectionManagerImpl::ActiveStream::completeRequest() {
   if (state_.deferred_to_next_io_iteration_) {
     connection_manager_.stats_.named_.downstream_rq_deferred_.dec();
   }
-  calculateCapacityUnits();
 #endif
 }
 
