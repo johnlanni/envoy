@@ -49,6 +49,7 @@ envoy_cc_test(
         "//source/common/common:hex_lib",
         "//source/common/crypto:utility_lib",
         "//source/common/event:dispatcher_lib",
+        "//source/common/http:conn_manager_lib",
         "//source/common/stats:isolated_store_lib",
         "//source/common/stats:stats_lib",
         "//source/extensions/common/wasm:wasm_lib",
@@ -128,6 +129,7 @@ envoy_cc_test(
     tags = ["skip_on_windows"],
     deps = [
         "//envoy/common:base_includes",
+        "//source/common/http:conn_manager_lib",
         "//source/extensions/common/wasm:wasm_lib",
         "//test/mocks/http:http_mocks",
         "//test/mocks/network:network_mocks",
@@ -152,6 +154,7 @@ envoy_cc_test(
     tags = ["skip_on_windows"],
     deps = [
         ":wasm_runtime",
+        "//source/common/http:conn_manager_lib",
         "//source/common/network:filter_state_dst_address_lib",
         "//source/common/tcp_proxy",
         "//source/extensions/clusters/original_dst:original_dst_cluster_lib",
