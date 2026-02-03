@@ -35,13 +35,14 @@ public:
   MockRedisAsyncClient();
   ~MockRedisAsyncClient() override;
 
-  Redis::PoolRequest* send(std::string&& query, Callbacks& callbacks) override {
-    return send_(query, callbacks);
+  Redis::PoolRequest* send(std::string&& query, Callbacks& callbacks,
+                           const AsyncClient::RedisRequestOptions& options) override {
+    return send_(query, callbacks, options);
   }
 
   MOCK_METHOD(void, initialize, (Redis::AsyncClientConfig config), (override));
 
-  MOCK_METHOD(Redis::PoolRequest*, send_, (std::string & query, Callbacks& callbacks));
+  MOCK_METHOD(Redis::PoolRequest*, send_, (std::string & query, Callbacks& callbacks, const AsyncClient::RedisRequestOptions& options));
 
   MOCK_METHOD(Event::Dispatcher&, dispatcher, (), (override));
 

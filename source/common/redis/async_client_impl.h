@@ -90,7 +90,8 @@ public:
 
   // Envoy::Redis::AsyncClient
   void initialize(AsyncClientConfig config) override;
-  PoolRequest* send(std::string&& query, Callbacks& callbacks) override;
+  PoolRequest* send(std::string&& query, Callbacks& callbacks,
+                    const AsyncClient::RedisRequestOptions& options) override;
   PoolRequest* sendToHost(const std::string& host_address, std::string_view request,
                           RawClientCallbacks& callbacks);
   Event::Dispatcher& dispatcher() override { return dispatcher_; }
@@ -112,7 +113,8 @@ private:
   using ThreadLocalActiveClientPtr = std::unique_ptr<ThreadLocalActiveClient>;
 
   struct PendingRequest : public RawClientCallbacks, public PoolRequest {
-    PendingRequest(AsyncClientImpl& parent, std::string&& incoming_request, Callbacks& callbacks);
+    PendingRequest(AsyncClientImpl& parent, std::string&& incoming_request, Callbacks& callbacks,
+                   const AsyncClient::RedisRequestOptions& options);
     ~PendingRequest() override;
 
     // Common::Redis::Client::RawClientCallbacks
@@ -126,6 +128,7 @@ private:
     std::string incoming_request_;
     PoolRequest* request_handler_;
     Callbacks& callbacks_;
+    Tracing::SpanPtr redis_span_;
   };
 
   void onHostsAdded(const std::vector<Upstream::HostSharedPtr>& host_added);

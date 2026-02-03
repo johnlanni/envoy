@@ -6,12 +6,22 @@
 #include <memory>
 #include <string>
 #include <utility>
+#include <string_view>
+
+#include "envoy/tracing/tracer.h"
+
+#include "absl/types/optional.h"
 
 namespace Envoy {
 
 namespace Event {
 
 class Dispatcher;
+}
+namespace Tracing {
+
+class Span;
+
 }
 
 namespace Redis {
@@ -71,6 +81,34 @@ public:
 
 class AsyncClient {
 public:
+  /**
+   * A structure to hold the options for Redis request.
+   */
+  struct RedisRequestOptions {
+    RedisRequestOptions& setParentSpan(Tracing::Span& parent_span) {
+      parent_span_ = &parent_span;
+      return *this;
+    }
+    RedisRequestOptions& setChildSpanName(const std::string& child_span_name) {
+      child_span_name_ = child_span_name;
+      return *this;
+    }
+    RedisRequestOptions& setSampled(absl::optional<bool> sampled) {
+      sampled_ = sampled;
+      return *this;
+    }
+
+    // The parent span that child spans are created under to trace egress requests/responses.
+    // If not set, requests will not be traced.
+    Tracing::Span* parent_span_{nullptr};
+    // The name to give to the child span that represents the async redis request.
+    // If left empty and parent_span_ is set, then the default name will have the cluster name.
+    // Only used if parent_span_ is set.
+    std::string child_span_name_{""};
+    // Sampling decision for the tracing span. The span is sampled by default.
+    absl::optional<bool> sampled_{true};
+  };
+
   class Callbacks {
   public:
     virtual ~Callbacks() = default;
@@ -84,7 +122,8 @@ public:
 
   virtual void initialize(AsyncClientConfig config) PURE;
 
-  virtual PoolRequest* send(std::string&& query, Callbacks& callbacks) PURE;
+  virtual PoolRequest* send(std::string&& query, Callbacks& callbacks,
+                            const RedisRequestOptions& options) PURE;
 
   virtual Event::Dispatcher& dispatcher() PURE;
 };
