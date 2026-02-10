@@ -27,7 +27,7 @@ Http::FilterHeadersStatus CustomResponseFilter::decodeHeaders(Http::RequestHeade
     if (config == nullptr) {
       config = config_.get();
     }
-    if (config->withRequestBody() && !Http::Utility::isWebSocketUpgradeRequest(header_map) &&
+    if (!Http::Utility::isWebSocketUpgradeRequest(header_map) &&
         !Http::Utility::isH2UpgradeRequest(header_map) &&
         !Grpc::Common::isGrpcRequestHeaders(header_map)) {
       Protobuf::Struct metadata;
@@ -35,8 +35,6 @@ Http::FilterHeadersStatus CustomResponseFilter::decodeHeaders(Http::RequestHeade
       fields["need_fallback"].set_bool_value(true);
       decoder_callbacks_->streamInfo().setDynamicMetadata("envoy.filters.http.custom_response",
                                                           metadata);
-      decoder_callbacks_->setNeedBuffering(true);
-      decoder_callbacks_->setDecoderBufferLimit(config->maxRequestBytes());
     }
   }
 #else
@@ -67,8 +65,7 @@ Http::FilterDataStatus CustomResponseFilter::decodeData(Buffer::Instance&, bool)
     if (config == nullptr) {
       config = config_.get();
     }
-    if (config->withRequestBody() &&
-        !Http::Utility::isWebSocketUpgradeRequest(*downstream_headers_) &&
+    if (!Http::Utility::isWebSocketUpgradeRequest(*downstream_headers_) &&
         !Http::Utility::isH2UpgradeRequest(*downstream_headers_) &&
         !Grpc::Common::isGrpcRequestHeaders(*downstream_headers_)) {
       Protobuf::Struct metadata;
