@@ -426,7 +426,14 @@ protected:
 
   void onHeadersModified(WasmHeaderMapType type) {
     if (type != WasmHeaderMapType::RequestHeaders ||
+#if defined(HIGRESS)
+        // ABI 0.2.100 is Higress custom ABI which also needs auto route cache
+        // clearing on header modification for reroute support.
+        (abi_version_ > proxy_wasm::AbiVersion::ProxyWasm_0_2_1 &&
+         abi_version_ != proxy_wasm::AbiVersion::ProxyWasm_0_2_100)) {
+#else
         abi_version_ > proxy_wasm::AbiVersion::ProxyWasm_0_2_1) {
+#endif
       return;
     }
     clearRouteCache();
