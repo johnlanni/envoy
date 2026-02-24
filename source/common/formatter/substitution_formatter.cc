@@ -1410,9 +1410,21 @@ const StreamInfoFormatter::FieldExtractorLookupTbl& StreamInfoFormatter::getKnow
                                   [](const StreamInfo::StreamInfo& stream_info) {
                                     absl::optional<std::string> result;
                                     std::string route_name = stream_info.getRouteName();
+#if defined(HIGRESS)
+                                    if (!route_name.empty()) {
+                                      result = route_name;
+                                    } else {
+                                      auto route = stream_info.route();
+                                      if (route && route->routeEntry()) {
+                                        result = route->routeEntry()->routeName();
+                                      }
+                                    }
+#else
                                     if (!route_name.empty()) {
                                       result = route_name;
                                     }
+#endif
+
                                     return result;
                                   });
                             }}},
