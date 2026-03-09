@@ -624,15 +624,18 @@ Context::findValue(absl::string_view name, Protobuf::Arena* arena, bool last) co
     }
     break;
   case PropertyToken::ROUTE_NAME:
-    if (info && !info->getRouteName().empty()) {
-      return CelValue::CreateString(&info->getRouteName());
-    }
+    // Check filter_callbacks->route() first because it triggers route re-evaluation
+    // after clearRouteCache(). info->getRouteName() reads from streamInfo().route_
+    // which is NOT cleared by clearRouteCache(), returning stale data. (issue #3571)
     if (filter_callbacks) {
       auto route = filter_callbacks->route();
       if (route) {
         // routeName() is on Route, not RouteEntry
         return CelValue::CreateString(&route->routeName());
       }
+    }
+    if (info && !info->getRouteName().empty()) {
+      return CelValue::CreateString(&info->getRouteName());
     }
     break;
   case PropertyToken::ROUTE_METADATA:
