@@ -74,7 +74,9 @@ Http::FilterDataStatus CustomResponseFilter::decodeData(Buffer::Instance&, bool)
       decoder_callbacks_->streamInfo().setDynamicMetadata("envoy.filters.http.custom_response",
                                                           metadata);
       decoder_callbacks_->setNeedBuffering(true);
-      decoder_callbacks_->setDecoderBufferLimit(config->maxRequestBytes());
+      if (config->maxRequestBytes() > 0) {
+        decoder_callbacks_->setDecoderBufferLimit(config->maxRequestBytes());
+      }
     }
     has_checked_ = true;
   }
