@@ -40,6 +40,9 @@ using Envoy::Extensions::Common::Wasm::Plugin;
 using Envoy::Extensions::Common::Wasm::PluginHandle;
 using Envoy::Extensions::Common::Wasm::PluginHandleSharedPtr;
 using Envoy::Extensions::Common::Wasm::PluginHandleSharedPtrThreadLocal;
+#if defined(HIGRESS)
+using Envoy::Extensions::Common::Wasm::RebuildSource;
+#endif
 using Envoy::Extensions::Common::Wasm::Wasm;
 using Envoy::Extensions::Common::Wasm::WasmHandleSharedPtr;
 using proxy_wasm::ContextBase;
@@ -108,21 +111,33 @@ public:
   }
 
   bool rebuildThroughThreadLocal(PluginHandleSharedPtrThreadLocal& thread_local_handle,
-                                 bool is_fail_recovery = false) {
-    if (!is_fail_recovery && thread_local_handle.handle != nullptr &&
-        thread_local_handle.handle->wasmHandle() != nullptr &&
-        thread_local_handle.handle->wasmHandle()->wasm() != nullptr) {
-      thread_local_handle.handle->wasmHandle()->wasm()->setShouldRebuild(true);
+                                 bool is_fail_recovery = false,
+                                 RebuildSource source = RebuildSource::Periodic) {
+    if (!is_fail_recovery && thread_local_handle.handle() != nullptr &&
+        thread_local_handle.handle()->wasmHandle() != nullptr &&
+        thread_local_handle.handle()->wasmHandle()->wasm() != nullptr) {
+      thread_local_handle.handle()->wasmHandle()->wasm()->setShouldRebuild(true);
     }
-    const bool rebuilt = thread_local_handle.rebuild(is_fail_recovery);
+    const bool rebuilt = thread_local_handle.rebuild(is_fail_recovery, source);
     if (rebuilt) {
-      plugin_handle_ = thread_local_handle.handle;
+      plugin_handle_ = thread_local_handle.handle();
       wasm_ = plugin_handle_->wasmHandle();
       if (!is_fail_recovery && wasm_ != nullptr && wasm_->wasm() != nullptr) {
         wasm_->wasm()->setShouldRebuild(false);
       }
     }
     return rebuilt;
+  }
+
+  std::unique_ptr<PluginHandleSharedPtrThreadLocal>
+  makeThreadLocalHandle(bool enable_reclaim_timer = false) {
+    return std::make_unique<PluginHandleSharedPtrThreadLocal>(plugin_handle_, base_wasm_,
+                                                              enable_reclaim_timer);
+  }
+
+  void adoptThreadLocalHandle(PluginHandleSharedPtrThreadLocal& thread_local_handle) {
+    plugin_handle_ = thread_local_handle.handle();
+    wasm_ = plugin_handle_->wasmHandle();
   }
 
   std::unique_ptr<TestFilter> makeStreamContext(const PluginHandleSharedPtr& plugin_handle) {
@@ -2203,18 +2218,18 @@ TEST_P(WasmHttpFilterTest, ProactiveRebuildSkipsWhenOldGenerationLiveAndCurrentA
 
   auto current_stream_context = makeStreamContext(plugin_handle_);
   EXPECT_EQ(1U, wasm_->wasm()->activeStreamCount());
-  PluginHandleSharedPtr current_generation_handle = thread_local_handle.handle;
+  PluginHandleSharedPtr current_generation_handle = thread_local_handle.handle();
 
   advanceRebuildInterval();
   EXPECT_FALSE(rebuildThroughThreadLocal(thread_local_handle));
-  EXPECT_EQ(current_generation_handle.get(), thread_local_handle.handle.get());
+  EXPECT_EQ(current_generation_handle.get(), thread_local_handle.handle().get());
   EXPECT_EQ(1U, rebuild_total.value());
 
   current_stream_context->onDestroy();
   EXPECT_EQ(0U, wasm_->wasm()->activeStreamCount());
 }
 
-TEST_P(WasmHttpFilterTest, ProactiveRebuildAllowsWhenOldGenerationLiveAndCurrentIdle) {
+TEST_P(WasmHttpFilterTest, ProactiveRebuildSkipsWhenOldGenerationLiveAndCurrentIdle) {
   auto runtime = std::get<0>(GetParam());
   if (runtime == "null") {
     return;
@@ -2237,11 +2252,38 @@ TEST_P(WasmHttpFilterTest, ProactiveRebuildAllowsWhenOldGenerationLiveAndCurrent
   EXPECT_EQ(0U, wasm_->wasm()->activeStreamCount());
 
   advanceRebuildInterval();
+  EXPECT_FALSE(rebuildThroughThreadLocal(thread_local_handle));
+  EXPECT_EQ(1U, rebuild_total.value());
+}
+
+TEST_P(WasmHttpFilterTest, ProactiveRebuildPrunesExpiredOldGenerations) {
+  auto runtime = std::get<0>(GetParam());
+  if (runtime == "null") {
+    return;
+  }
+  if (std::get<1>(GetParam()) != "cpp") {
+    return;
+  }
+
+  setupTest("", "RebuildTest");
+  auto& rebuild_total = scope_->counterFromString("wasm.envoy.wasm.runtime." + runtime +
+                                                  ".plugin.plugin_name.rebuild_total");
+
+  PluginHandleSharedPtrThreadLocal thread_local_handle(plugin_handle_);
+  PluginHandleSharedPtr old_generation_handle = plugin_handle_;
+
+  advanceRebuildInterval();
+  ASSERT_TRUE(rebuildThroughThreadLocal(thread_local_handle));
+  EXPECT_EQ(1U, rebuild_total.value());
+
+  old_generation_handle.reset();
+
+  advanceRebuildInterval();
   EXPECT_TRUE(rebuildThroughThreadLocal(thread_local_handle));
   EXPECT_EQ(2U, rebuild_total.value());
 }
 
-TEST_P(WasmHttpFilterTest, ProactiveRebuildPrunesExpiredOldGenerations) {
+TEST_P(WasmHttpFilterTest, ProactiveRebuildSkipsWhenCurrentGenerationActiveWithoutOld) {
   auto runtime = std::get<0>(GetParam());
   if (runtime == "null") {
     return;
@@ -2263,8 +2305,8 @@ TEST_P(WasmHttpFilterTest, ProactiveRebuildPrunesExpiredOldGenerations) {
   EXPECT_EQ(1U, wasm_->wasm()->activeStreamCount());
 
   advanceRebuildInterval();
-  EXPECT_TRUE(rebuildThroughThreadLocal(thread_local_handle));
-  EXPECT_EQ(2U, rebuild_total.value());
+  EXPECT_FALSE(rebuildThroughThreadLocal(thread_local_handle));
+  EXPECT_EQ(1U, rebuild_total.value());
 
   current_stream_context->onDestroy();
 }
@@ -2392,6 +2434,188 @@ TEST_P(WasmHttpFilterTest, FailRecoveryBypassesProactiveActiveGuard) {
   EXPECT_EQ(1U, recover_total.value());
 
   current_stream_context->onDestroy();
+}
+
+TEST_P(WasmHttpFilterTest, ReclaimTimerRebuildsIdleVmWhenShouldRebuildIsSet) {
+  auto runtime = std::get<0>(GetParam());
+  if (runtime == "null") {
+    return;
+  }
+  if (std::get<1>(GetParam()) != "cpp") {
+    return;
+  }
+
+  setupTest("", "RebuildTest");
+  auto& rebuild_total = scope_->counterFromString("wasm.envoy.wasm.runtime." + runtime +
+                                                  ".plugin.plugin_name.rebuild_total");
+  auto& rebuild_periodic_total = scope_->counterFromString(
+      "wasm.envoy.wasm.runtime." + runtime + ".plugin.plugin_name.rebuild_periodic_total");
+  auto& rebuild_memory_total = scope_->counterFromString(
+      "wasm.envoy.wasm.runtime." + runtime + ".plugin.plugin_name.rebuild_memory_total");
+
+  auto thread_local_handle = makeThreadLocalHandle(true);
+  auto old_wasm = thread_local_handle->handle()->wasmHandle()->wasm();
+  old_wasm->setShouldRebuild(true);
+  old_wasm->markReclaimEligible();
+
+  advanceRebuildInterval();
+  thread_local_handle->runReclaimTimerForTesting();
+  adoptThreadLocalHandle(*thread_local_handle);
+
+  EXPECT_EQ(1U, rebuild_total.value());
+  EXPECT_EQ(1U, rebuild_periodic_total.value());
+  EXPECT_EQ(0U, rebuild_memory_total.value());
+  EXPECT_FALSE(old_wasm->reclaimEligibleSinceForTesting().has_value());
+}
+
+TEST_P(WasmHttpFilterTest, ReclaimTimerUsesMemoryThresholdSourceAndRuntimeOverride) {
+  auto runtime = std::get<0>(GetParam());
+  if (runtime == "null") {
+    return;
+  }
+  if (std::get<1>(GetParam()) != "cpp") {
+    return;
+  }
+
+  setupTest("", "RebuildTest");
+  auto& rebuild_total = scope_->counterFromString("wasm.envoy.wasm.runtime." + runtime +
+                                                  ".plugin.plugin_name.rebuild_total");
+  auto& rebuild_periodic_total = scope_->counterFromString(
+      "wasm.envoy.wasm.runtime." + runtime + ".plugin.plugin_name.rebuild_periodic_total");
+  auto& rebuild_memory_total = scope_->counterFromString(
+      "wasm.envoy.wasm.runtime." + runtime + ".plugin.plugin_name.rebuild_memory_total");
+
+  EXPECT_CALL(runtime_.snapshot_,
+              getInteger("envoy.wasm.reclaim.memory_threshold_bytes", 800ULL * 1024 * 1024))
+      .WillRepeatedly(Return(1));
+
+  auto thread_local_handle = makeThreadLocalHandle(true);
+  auto old_wasm = thread_local_handle->handle()->wasmHandle()->wasm();
+  EXPECT_FALSE(old_wasm->shouldRebuild());
+
+  advanceRebuildInterval();
+  thread_local_handle->runReclaimTimerForTesting();
+  adoptThreadLocalHandle(*thread_local_handle);
+
+  EXPECT_EQ(1U, rebuild_total.value());
+  EXPECT_EQ(0U, rebuild_periodic_total.value());
+  EXPECT_EQ(1U, rebuild_memory_total.value());
+  EXPECT_FALSE(old_wasm->shouldRebuild());
+  EXPECT_FALSE(old_wasm->reclaimEligibleSinceForTesting().has_value());
+}
+
+TEST_P(WasmHttpFilterTest, ReclaimMemoryThresholdFallsBackWhenRuntimeValueIsZero) {
+  auto runtime = std::get<0>(GetParam());
+  if (runtime == "null") {
+    return;
+  }
+  if (std::get<1>(GetParam()) != "cpp") {
+    return;
+  }
+
+  setupTest("", "RebuildTest");
+  EXPECT_CALL(runtime_.snapshot_,
+              getInteger("envoy.wasm.reclaim.memory_threshold_bytes", 800ULL * 1024 * 1024))
+      .WillOnce(Return(0));
+  EXPECT_EQ(800ULL * 1024 * 1024, wasm_->wasm()->reclaimMemoryThreshold());
+}
+
+TEST_P(WasmHttpFilterTest, ReclaimTimerSkipKeepsEligibleSinceUntilSuccessfulReclaim) {
+  auto runtime = std::get<0>(GetParam());
+  if (runtime == "null") {
+    return;
+  }
+  if (std::get<1>(GetParam()) != "cpp") {
+    return;
+  }
+
+  setupTest("", "RebuildTest");
+  auto& rebuild_total = scope_->counterFromString("wasm.envoy.wasm.runtime." + runtime +
+                                                  ".plugin.plugin_name.rebuild_total");
+
+  auto thread_local_handle = makeThreadLocalHandle(true);
+  auto stream_context = makeStreamContext(plugin_handle_);
+  auto wasm = thread_local_handle->handle()->wasmHandle()->wasm();
+  wasm->setShouldRebuild(true);
+
+  advanceRebuildInterval();
+  thread_local_handle->runReclaimTimerForTesting();
+
+  EXPECT_EQ(0U, rebuild_total.value());
+  EXPECT_TRUE(wasm->reclaimEligibleSinceForTesting().has_value());
+
+  stream_context->onDestroy();
+  advanceRebuildInterval();
+  thread_local_handle->runReclaimTimerForTesting();
+  adoptThreadLocalHandle(*thread_local_handle);
+
+  EXPECT_EQ(1U, rebuild_total.value());
+  EXPECT_FALSE(wasm->reclaimEligibleSinceForTesting().has_value());
+}
+
+TEST_P(WasmHttpFilterTest, ReclaimTimerStillHonorsRecoverInterval) {
+  auto runtime = std::get<0>(GetParam());
+  if (runtime == "null") {
+    return;
+  }
+  if (std::get<1>(GetParam()) != "cpp") {
+    return;
+  }
+
+  setupTest("", "RebuildTest");
+  auto& rebuild_total = scope_->counterFromString("wasm.envoy.wasm.runtime." + runtime +
+                                                  ".plugin.plugin_name.rebuild_total");
+
+  auto thread_local_handle = makeThreadLocalHandle(true);
+  thread_local_handle->handle()->wasmHandle()->wasm()->setShouldRebuild(true);
+
+  advanceRebuildInterval();
+  thread_local_handle->runReclaimTimerForTesting();
+  adoptThreadLocalHandle(*thread_local_handle);
+  EXPECT_EQ(1U, rebuild_total.value());
+
+  thread_local_handle->handle()->wasmHandle()->wasm()->setShouldRebuild(true);
+  thread_local_handle->runReclaimTimerForTesting();
+  EXPECT_EQ(1U, rebuild_total.value());
+}
+
+TEST_P(WasmHttpFilterTest, ReclaimTimerDoesNotCrashForEmptyHandle) {
+  PluginHandleSharedPtrThreadLocal thread_local_handle(nullptr, nullptr, true);
+  thread_local_handle.runReclaimTimerForTesting();
+}
+
+TEST_P(WasmHttpFilterTest, StaleWrapperSynchronizesToHostCurrentBeforeReclaim) {
+  auto runtime = std::get<0>(GetParam());
+  if (runtime == "null") {
+    return;
+  }
+  if (std::get<1>(GetParam()) != "cpp") {
+    return;
+  }
+
+  setupTest("", "RebuildTest");
+  auto& rebuild_total = scope_->counterFromString("wasm.envoy.wasm.runtime." + runtime +
+                                                  ".plugin.plugin_name.rebuild_total");
+
+  auto wrapper_a = makeThreadLocalHandle(true);
+  auto wrapper_b = makeThreadLocalHandle(true);
+
+  advanceRebuildInterval();
+  ASSERT_TRUE(rebuildThroughThreadLocal(*wrapper_a));
+  adoptThreadLocalHandle(*wrapper_a);
+  EXPECT_EQ(1U, rebuild_total.value());
+
+  advanceRebuildInterval();
+  wrapper_b->handle()->wasmHandle()->wasm()->setShouldRebuild(true);
+  EXPECT_FALSE(wrapper_b->rebuild(false));
+  EXPECT_EQ(plugin_handle_.get(), wrapper_b->handle().get());
+  EXPECT_EQ(1U, rebuild_total.value());
+
+  advanceRebuildInterval();
+  wrapper_b->handle()->wasmHandle()->wasm()->setShouldRebuild(true);
+  EXPECT_TRUE(rebuildThroughThreadLocal(*wrapper_b));
+  adoptThreadLocalHandle(*wrapper_b);
+  EXPECT_EQ(2U, rebuild_total.value());
 }
 
 TEST_P(WasmHttpFilterTest, RecoverFromCrash) {
