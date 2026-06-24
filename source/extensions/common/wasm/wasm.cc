@@ -93,6 +93,13 @@ WasmEvent failStateToWasmEvent(FailState state) {
 }
 
 const int MIN_RECOVER_INTERVAL_SECONDS = 1;
+constexpr uint64_t DefaultReclaimMemoryThresholdBytes = 800ULL * 1024 * 1024;
+constexpr absl::string_view ReclaimMemoryThresholdRuntimeKey =
+    "envoy.wasm.reclaim.memory_threshold_bytes";
+
+MonotonicTime effectiveMonotonicTime(Event::Dispatcher& dispatcher) {
+  return dispatcher.timeSource().monotonicTime() + cache_time_offset_for_testing;
+}
 
 struct RebuildGuardEntry {
   MonotonicTime last_recover_time;
@@ -154,24 +161,54 @@ void sweepRebuildGuardRegistry(const std::string& active_vm_key) {
 } // namespace
 
 #ifdef HIGRESS
-void Wasm::initializeRuntimeStatsTimer(){
+void Wasm::initializeRuntimeStatsTimer() {
   runtime_stats_timer_ = dispatcher_.createTimer(
-  [weak = std::weak_ptr<Wasm>(std::static_pointer_cast<Wasm>(shared_from_this()))]() {
-      auto shared = weak.lock();
-      if (shared) {
-        auto vm = shared->wasm_vm();
-        if (vm) {
-          shared->runtime_stats_handler_.updateMemorySize(vm->getMemorySize());
+      [weak = std::weak_ptr<Wasm>(std::static_pointer_cast<Wasm>(shared_from_this()))]() {
+        auto shared = weak.lock();
+        if (shared) {
+          auto vm = shared->wasm_vm();
+          if (vm) {
+            shared->runtime_stats_handler_.updateMemorySize(vm->getMemorySize());
+          }
+          shared->runtime_stats_timer_->enableTimer(
+              std::chrono::milliseconds(Wasm::kRuntimeStatsInterval));
         }
-        shared->runtime_stats_timer_->enableTimer(std::chrono::milliseconds(Wasm::kRuntimeStatsInterval));
-      }
-    });
+      });
   runtime_stats_timer_->enableTimer(std::chrono::milliseconds(Wasm::kRuntimeStatsInterval));
+}
+
+uint64_t Wasm::reclaimMemoryThreshold() const {
+  if (runtime_loader_ == nullptr) {
+    return DefaultReclaimMemoryThresholdBytes;
+  }
+  const uint64_t threshold = runtime_loader_->snapshot().getInteger(
+      ReclaimMemoryThresholdRuntimeKey, DefaultReclaimMemoryThresholdBytes);
+  return threshold == 0 ? DefaultReclaimMemoryThresholdBytes : threshold;
+}
+
+void Wasm::markReclaimEligible() {
+  if (!reclaim_eligible_since_.has_value()) {
+    reclaim_eligible_since_ = effectiveMonotonicTime(dispatcher_);
+  }
+}
+
+void Wasm::recordReclaimLatency(MonotonicTime now) {
+  if (!reclaim_eligible_since_.has_value()) {
+    return;
+  }
+  const auto elapsed =
+      std::chrono::duration_cast<std::chrono::milliseconds>(now - reclaim_eligible_since_.value());
+  lifecycleStats().reclaim_latency_.recordValue(elapsed.count() < 0 ? 0 : elapsed.count());
 }
 #endif
 
 Wasm::Wasm(WasmConfig& config, absl::string_view vm_key, const Stats::ScopeSharedPtr& scope,
-           Api::Api& api, Upstream::ClusterManager& cluster_manager, Event::Dispatcher& dispatcher)
+           Api::Api& api, Upstream::ClusterManager& cluster_manager, Event::Dispatcher& dispatcher
+#ifdef HIGRESS
+           ,
+           Runtime::Loader* runtime
+#endif
+           )
     : WasmBase(
           createWasmVm(config.config().vm_config().runtime()), config.config().vm_config().vm_id(),
           THROW_OR_RETURN_VALUE(
@@ -182,7 +219,9 @@ Wasm::Wasm(WasmConfig& config, absl::string_view vm_key, const Stats::ScopeShare
       cluster_manager_(cluster_manager), dispatcher_(dispatcher),
       time_source_(dispatcher.timeSource()),
 #ifdef HIGRESS
-      runtime_stats_handler_(RuntimeStatsHandler(scope, config.config().vm_config().runtime(), config.config().name(), dispatcher.name())),
+      runtime_stats_handler_(RuntimeStatsHandler(scope, config.config().vm_config().runtime(),
+                                                 config.config().name(), dispatcher.name())),
+      runtime_loader_(runtime),
       lifecycle_stats_handler_(LifecycleStatsHandler(scope, config.config().vm_config().runtime(),
                                                      config.config().name())) {
 #else
@@ -193,7 +232,12 @@ Wasm::Wasm(WasmConfig& config, absl::string_view vm_key, const Stats::ScopeShare
   ENVOY_LOG(debug, "Base Wasm created {} now active", lifecycle_stats_handler_.getActiveVmCount());
 }
 
-Wasm::Wasm(WasmHandleSharedPtr base_wasm_handle, Event::Dispatcher& dispatcher)
+Wasm::Wasm(WasmHandleSharedPtr base_wasm_handle, Event::Dispatcher& dispatcher
+#ifdef HIGRESS
+           ,
+           Runtime::Loader* runtime
+#endif
+           )
     : WasmBase(base_wasm_handle,
                [&base_wasm_handle]() {
                  return createWasmVm(absl::StrCat(
@@ -206,7 +250,11 @@ Wasm::Wasm(WasmHandleSharedPtr base_wasm_handle, Event::Dispatcher& dispatcher)
       cluster_manager_(getWasm(base_wasm_handle)->clusterManager()), dispatcher_(dispatcher),
       time_source_(dispatcher.timeSource()),
 #ifdef HIGRESS
-      runtime_stats_handler_(RuntimeStatsHandler(getWasm(base_wasm_handle)->scope_, getWasm(base_wasm_handle)->runtime_stats_handler_.runtime, getWasm(base_wasm_handle)->runtime_stats_handler_.plugin_name, dispatcher.name())), 
+      runtime_stats_handler_(RuntimeStatsHandler(
+          getWasm(base_wasm_handle)->scope_,
+          getWasm(base_wasm_handle)->runtime_stats_handler_.runtime,
+          getWasm(base_wasm_handle)->runtime_stats_handler_.plugin_name, dispatcher.name())),
+      runtime_loader_(runtime != nullptr ? runtime : getWasm(base_wasm_handle)->runtime_loader_),
 #endif
       lifecycle_stats_handler_(getWasm(base_wasm_handle)->lifecycle_stats_handler_) {
   lifecycle_stats_handler_.onEvent(WasmEvent::VmCreated);
@@ -271,51 +319,160 @@ Wasm::~Wasm() {
 }
 
 #if defined(HIGRESS)
-bool PluginHandleSharedPtrThreadLocal::rebuild(bool is_fail_recovery) {
-  if (handle == nullptr || handle->wasmHandle() == nullptr ||
-      handle->wasmHandle()->wasm() == nullptr) {
+PluginHandleSharedPtrThreadLocal::PluginHandleSharedPtrThreadLocal(PluginHandleSharedPtr handle,
+                                                                   WasmHandleSharedPtr base_wasm,
+                                                                   bool enable_reclaim_timer,
+                                                                   MonotonicTime last_load)
+    : last_load(last_load),
+      plugin_(handle != nullptr ? std::static_pointer_cast<Plugin>(handle->plugin()) : nullptr),
+      base_wasm_(base_wasm), reclaim_timer_enabled_(enable_reclaim_timer),
+      handle_(std::move(handle)) {
+  initializeReclaimTimer();
+}
+
+PluginHandleSharedPtrThreadLocal::~PluginHandleSharedPtrThreadLocal() {
+  if (reclaim_timer_) {
+    reclaim_timer_->disableTimer();
+  }
+}
+
+void PluginHandleSharedPtrThreadLocal::initializeReclaimTimer() {
+  if (!reclaim_timer_enabled_) {
+    return;
+  }
+  if (handle_ == nullptr || handle_->wasmHandle() == nullptr ||
+      handle_->wasmHandle()->wasm() == nullptr) {
+    return;
+  }
+  reclaim_timer_ =
+      handle_->wasmHandle()->wasm()->dispatcher().createTimer([this]() { onReclaimTimer(); });
+  reclaim_timer_->enableTimer(kReclaimTimerInterval);
+}
+
+void PluginHandleSharedPtrThreadLocal::runReclaimTimerForTesting() { onReclaimTimer(); }
+
+void PluginHandleSharedPtrThreadLocal::onReclaimTimer() {
+  auto rearm = [this]() {
+    if (reclaim_timer_) {
+      reclaim_timer_->enableTimer(kReclaimTimerInterval);
+    }
+  };
+
+  if (handle_ == nullptr || handle_->wasmHandle() == nullptr ||
+      handle_->wasmHandle()->wasm() == nullptr) {
+    rearm();
+    return;
+  }
+
+  auto wasm = handle_->wasmHandle()->wasm();
+  const uint64_t memory_size = wasm->wasm_vm() != nullptr ? wasm->wasm_vm()->getMemorySize() : 0;
+  const bool memory_triggered = memory_size > wasm->reclaimMemoryThreshold();
+  const bool periodic_triggered = wasm->shouldRebuild();
+  if (!memory_triggered && !periodic_triggered) {
+    rearm();
+    return;
+  }
+
+  RebuildSource source = RebuildSource::Periodic;
+  if (memory_triggered) {
+    source = RebuildSource::Memory;
+    wasm->markReclaimEligible();
+    wasm->setShouldRebuild(true);
+  } else {
+    wasm->markReclaimEligible();
+  }
+
+  rebuild(false, source);
+  if (memory_triggered) {
+    wasm->setShouldRebuild(false);
+  }
+  rearm();
+}
+
+bool PluginHandleSharedPtrThreadLocal::syncHandleToCurrentGeneration(const std::string& vm_key) {
+  auto current_base = proxy_wasm::getThreadLocalWasm(vm_key);
+  if (current_base == nullptr) {
+    ENVOY_LOG(info, "wasm vm proactive rebuild skipped: no current generation for vm_key");
+    return false;
+  }
+  auto current_wasm_handle = std::static_pointer_cast<WasmHandle>(current_base);
+  if (handle_ != nullptr && handle_->wasmHandle() != nullptr &&
+      handle_->wasmHandle().get() == current_wasm_handle.get()) {
+    return true;
+  }
+  if (base_wasm_ != nullptr && plugin_ != nullptr) {
+    auto synced_handle = getOrCreateThreadLocalPlugin(base_wasm_, plugin_,
+                                                      current_wasm_handle->wasm()->dispatcher());
+    if (synced_handle != nullptr && synced_handle->wasmHandle() != nullptr &&
+        synced_handle->wasmHandle().get() == current_wasm_handle.get()) {
+      handle_ = synced_handle;
+      ENVOY_LOG(info, "wasm vm proactive rebuild skipped: stale wrapper synchronized to current "
+                      "generation");
+      return false;
+    }
+  }
+  ENVOY_LOG(info, "wasm vm proactive rebuild skipped: stale wrapper has no current plugin handle");
+  return false;
+}
+
+bool PluginHandleSharedPtrThreadLocal::rebuild(bool is_fail_recovery, RebuildSource source) {
+  if (handle_ == nullptr || handle_->wasmHandle() == nullptr ||
+      handle_->wasmHandle()->wasm() == nullptr) {
     ENVOY_LOG(warn, "wasm has not been initialized");
     return false;
   }
-  auto current_wasm_handle = handle->wasmHandle();
+  auto current_wasm_handle = handle_->wasmHandle();
   auto current_wasm = current_wasm_handle->wasm();
   const std::string vm_key(current_wasm->vm_key());
+  if (!is_fail_recovery && !syncHandleToCurrentGeneration(vm_key)) {
+    return false;
+  }
+  current_wasm_handle = handle_->wasmHandle();
+  current_wasm = current_wasm_handle->wasm();
   sweepRebuildGuardRegistry(vm_key);
   auto& guard = rebuild_guard_registry[vm_key];
   guard.trackCurrentGeneration(current_wasm_handle);
   auto& dispatcher = current_wasm->dispatcher();
-  auto now = dispatcher.timeSource().monotonicTime() + cache_time_offset_for_testing;
+  auto now = effectiveMonotonicTime(dispatcher);
   if (now - guard.last_recover_time < std::chrono::seconds(MIN_RECOVER_INTERVAL_SECONDS)) {
     ENVOY_LOG(info, "wasm vm rebuild skipped: recover interval has not been reached");
     return false;
   }
   if (!is_fail_recovery && guard.hasLiveOldGeneration(current_wasm_handle)) {
-    const auto active_stream_count = current_wasm->activeStreamCount();
-    if (active_stream_count > 0) {
-      ENVOY_LOG(info,
-                "wasm vm proactive rebuild skipped: old generation is still live and current "
-                "generation has {} active streams",
-                active_stream_count);
-      return false;
-    }
+    ENVOY_LOG(info, "wasm vm proactive rebuild skipped: live generation cap reached");
+    return false;
+  }
+  const auto active_stream_count = current_wasm->activeStreamCount();
+  if (!is_fail_recovery && active_stream_count > 0) {
+    ENVOY_LOG(info, "wasm vm proactive rebuild skipped: current generation has {} active streams",
+              active_stream_count);
+    return false;
   }
   // Even if rebuild fails, it will be retried after the interval
   guard.last_recover_time = now;
   std::shared_ptr<PluginHandleBase> new_handle;
-  if (handle->rebuild(new_handle) && new_handle != nullptr) {
+  if (handle_->rebuild(new_handle) && new_handle != nullptr) {
     auto new_plugin_handle = std::static_pointer_cast<PluginHandle>(new_handle);
     auto new_wasm_handle = new_plugin_handle->wasmHandle();
     if (new_wasm_handle != nullptr && new_wasm_handle.get() != current_wasm_handle.get()) {
       guard.trackOldGeneration(current_wasm_handle);
     }
     guard.trackCurrentGeneration(new_wasm_handle);
-    handle = new_plugin_handle;
+    handle_ = new_plugin_handle;
     // Increment appropriate metrics based on rebuild type
     if (is_fail_recovery) {
-      handle->wasmHandle()->wasm()->lifecycleStats().recover_total_.inc();
+      handle_->wasmHandle()->wasm()->lifecycleStats().recover_total_.inc();
       ENVOY_LOG(info, "wasm vm recover from crash success");
     } else {
-      handle->wasmHandle()->wasm()->lifecycleStats().rebuild_total_.inc();
+      auto& stats = handle_->wasmHandle()->wasm()->lifecycleStats();
+      stats.rebuild_total_.inc();
+      if (source == RebuildSource::Memory) {
+        stats.rebuild_memory_total_.inc();
+      } else {
+        stats.rebuild_periodic_total_.inc();
+      }
+      current_wasm->recordReclaimLatency(now);
+      current_wasm->clearReclaimEligible();
       ENVOY_LOG(info, "wasm vm rebuild success");
     }
     return true;
@@ -437,11 +594,25 @@ void setTimeOffsetForCodeCacheForTesting(MonotonicTime::duration d) {
 static proxy_wasm::WasmHandleFactory
 getWasmHandleFactory(WasmConfig& wasm_config, const Stats::ScopeSharedPtr& scope, Api::Api& api,
                      Upstream::ClusterManager& cluster_manager, Event::Dispatcher& dispatcher,
-                     Server::ServerLifecycleNotifier&) {
-  return [&wasm_config, &scope, &api, &cluster_manager,
-          &dispatcher](std::string_view vm_key) -> WasmHandleBaseSharedPtr {
+                     Server::ServerLifecycleNotifier&
+#if defined(HIGRESS)
+                     ,
+                     Runtime::Loader* runtime
+#endif
+) {
+  return [&wasm_config, &scope, &api, &cluster_manager, &dispatcher
+#if defined(HIGRESS)
+          ,
+          runtime
+#endif
+  ](std::string_view vm_key) -> WasmHandleBaseSharedPtr {
     auto wasm = std::make_shared<Wasm>(wasm_config, toAbslStringView(vm_key), scope, api,
-                                       cluster_manager, dispatcher);
+                                       cluster_manager, dispatcher
+#if defined(HIGRESS)
+                                       ,
+                                       runtime
+#endif
+    );
     return std::static_pointer_cast<WasmHandleBase>(std::make_shared<WasmHandle>(std::move(wasm)));
   };
 }
@@ -506,7 +677,12 @@ bool createWasm(const PluginSharedPtr& plugin, const Stats::ScopeSharedPtr& scop
                 Event::Dispatcher& dispatcher, Api::Api& api,
                 Server::ServerLifecycleNotifier& lifecycle_notifier,
                 RemoteAsyncDataProviderPtr& remote_data_provider, CreateWasmCallback&& cb,
-                CreateContextFn create_root_context_for_testing) {
+                CreateContextFn create_root_context_for_testing
+#if defined(HIGRESS)
+                ,
+                Runtime::Loader* runtime
+#endif
+) {
   auto& stats_handler = getCreateStatsHandler();
   std::string source, code;
   auto config = plugin->wasmConfig();
@@ -576,6 +752,9 @@ bool createWasm(const PluginSharedPtr& plugin, const Stats::ScopeSharedPtr& scop
       vm_config.vm_id(),
       THROW_OR_RETURN_VALUE(MessageUtil::anyToBytes(vm_config.configuration()), std::string), code);
   auto complete_cb = [cb, vm_key, plugin, scope, &api, &cluster_manager, &dispatcher,
+#if defined(HIGRESS)
+                      runtime,
+#endif
                       &lifecycle_notifier, create_root_context_for_testing,
                       &stats_handler](std::string code) -> bool {
     if (code.empty()) {
@@ -586,7 +765,12 @@ bool createWasm(const PluginSharedPtr& plugin, const Stats::ScopeSharedPtr& scop
     auto config = plugin->wasmConfig();
     auto wasm = proxy_wasm::createWasm(
         vm_key, code, plugin,
-        getWasmHandleFactory(config, scope, api, cluster_manager, dispatcher, lifecycle_notifier),
+        getWasmHandleFactory(config, scope, api, cluster_manager, dispatcher, lifecycle_notifier
+#if defined(HIGRESS)
+                             ,
+                             runtime
+#endif
+                             ),
         getWasmHandleCloneFactory(dispatcher, create_root_context_for_testing),
         config.config().vm_config().allow_precompiled());
     Stats::ScopeSharedPtr create_wasm_stats_scope = stats_handler.lockAndCreateStats(scope);
@@ -685,28 +869,11 @@ Wasm* PluginConfig::maybeReloadHandleIfNeeded(SinglePluginHandle& handle_wrapper
   }
 
   // Null handle is special case and won't be reloaded for backward compatibility.
-  if (handle_wrapper.handle == nullptr) {
+  if (handle_wrapper.handle() == nullptr) {
     return nullptr;
   }
 
-  Wasm* wasm = getWasmOrNull(handle_wrapper.handle->wasmHandle());
-
-#if defined(HIGRESS)
-  // Check if plugin requested a rebuild (e.g., for memory optimization)
-  if (wasm != nullptr && !wasm->isFailed() && wasm->shouldRebuild()) {
-    ENVOY_LOG(info, "wasm vm requested rebuild, try to rebuild");
-    if (handle_wrapper.rebuild(false)) {
-      ENVOY_LOG(info, "wasm vm rebuild success");
-      wasm = getWasmOrNull(handle_wrapper.handle->wasmHandle());
-      if (wasm != nullptr) {
-        wasm->setShouldRebuild(false);
-      }
-    } else {
-      ENVOY_LOG(info, "wasm vm rebuild failed, still using the stale one");
-    }
-    return wasm;
-  }
-#endif
+  Wasm* wasm = getWasmOrNull(handle_wrapper.handle()->wasmHandle());
 
   // Only runtime failure will be handled by reloading logic. If the wasm is not failed or
   // failed with other errors, return it directly.
@@ -741,14 +908,14 @@ Wasm* PluginConfig::maybeReloadHandleIfNeeded(SinglePluginHandle& handle_wrapper
       stats_handler_->onEvent(WasmEvent::VmReloadFailure);
     } else {
       stats_handler_->onEvent(WasmEvent::VmReloadSuccess);
-      handle_wrapper.handle = new_load;
+      handle_wrapper.handle() = new_load;
     }
   } else {
     stats_handler_->onEvent(WasmEvent::VmReloadFailure);
   }
 
-  ASSERT(handle_wrapper.handle != nullptr);
-  return getWasmOrNull(handle_wrapper.handle->wasmHandle());
+  ASSERT(handle_wrapper.handle() != nullptr);
+  return getWasmOrNull(handle_wrapper.handle()->wasmHandle());
 }
 
 std::pair<OptRef<PluginConfig::SinglePluginHandle>, Wasm*> PluginConfig::getPluginHandleAndWasm() {
@@ -833,8 +1000,12 @@ PluginConfig::PluginConfig(const envoy::extensions::wasm::v3::PluginConfig& conf
     }
 
     if (is_singleton_handle_) {
-      plugin_handle_ = SinglePluginHandle(
-          getOrCreateThreadLocalPlugin(base_wasm, plugin_, context.mainThreadDispatcher()),
+      plugin_handle_.emplace<SinglePluginHandle>(
+          getOrCreateThreadLocalPlugin(base_wasm, plugin_, context.mainThreadDispatcher())
+#if defined(HIGRESS)
+              ,
+          base_wasm, true,
+#endif
           context.mainThreadDispatcher().timeSource().monotonicTime());
       return;
     }
@@ -844,7 +1015,11 @@ PluginConfig::PluginConfig(const envoy::extensions::wasm::v3::PluginConfig& conf
     // NB: the Slot set() call doesn't complete inline, so all arguments must outlive this call.
     thread_local_handle->set([base_wasm, plugin = this->plugin_](Event::Dispatcher& dispatcher) {
       return std::make_shared<SinglePluginHandle>(
-          getOrCreateThreadLocalPlugin(base_wasm, plugin, dispatcher),
+          getOrCreateThreadLocalPlugin(base_wasm, plugin, dispatcher)
+#if defined(HIGRESS)
+              ,
+          base_wasm, true,
+#endif
           dispatcher.timeSource().monotonicTime());
     });
     plugin_handle_ = std::move(thread_local_handle);
@@ -853,7 +1028,12 @@ PluginConfig::PluginConfig(const envoy::extensions::wasm::v3::PluginConfig& conf
   if (!Common::Wasm::createWasm(plugin_, scope.createScope(""), context.clusterManager(),
                                 init_manager, context.mainThreadDispatcher(), context.api(),
                                 context.lifecycleNotifier(), remote_data_provider_,
-                                std::move(callback))) {
+                                std::move(callback)
+#if defined(HIGRESS)
+                                    ,
+                                nullptr, &context.runtime()
+#endif
+                                    )) {
     // TODO(wbpcode): use absl::Status to return error rather than throw.
     throw Common::Wasm::WasmException(
         fmt::format("Unable to create Wasm plugin {}", plugin_->name_));
@@ -862,7 +1042,7 @@ PluginConfig::PluginConfig(const envoy::extensions::wasm::v3::PluginConfig& conf
 
 std::shared_ptr<Context> PluginConfig::createContext() {
   auto [plugin_handle_holder, wasm] = getPluginHandleAndWasm();
-  if (!plugin_handle_holder.has_value() || plugin_handle_holder->handle == nullptr) {
+  if (!plugin_handle_holder.has_value() || plugin_handle_holder->handle() == nullptr) {
     return nullptr;
   }
 
@@ -874,11 +1054,11 @@ std::shared_ptr<Context> PluginConfig::createContext() {
       return nullptr;
     } else {
       // Fail closed is handled by an empty Context.
-      return std::make_shared<Context>(nullptr, 0, plugin_handle_holder->handle);
+      return std::make_shared<Context>(nullptr, 0, plugin_handle_holder->handle());
     }
   }
-  return std::make_shared<Context>(wasm, plugin_handle_holder->handle->rootContextId(),
-                                   plugin_handle_holder->handle);
+  return std::make_shared<Context>(wasm, plugin_handle_holder->handle()->rootContextId(),
+                                   plugin_handle_holder->handle());
 }
 
 Wasm* PluginConfig::wasm() { return getPluginHandleAndWasm().second; }

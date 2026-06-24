@@ -14,6 +14,9 @@
 #include "test/mocks/grpc/mocks.h"
 #include "test/mocks/http/mocks.h"
 #include "test/mocks/network/mocks.h"
+#if defined(HIGRESS)
+#include "test/mocks/runtime/mocks.h"
+#endif
 #include "test/mocks/server/mocks.h"
 #include "test/mocks/ssl/mocks.h"
 #include "test/mocks/stream_info/mocks.h"
@@ -88,7 +91,12 @@ public:
     // Passes ownership of root_context_.
     Extensions::Common::Wasm::createWasm(
         plugin_, scope_, cluster_manager_, init_manager_, dispatcher_, *api, lifecycle_notifier_,
-        remote_data_provider_, [this](WasmHandleSharedPtr wasm) { base_wasm_ = wasm; }, create_root);
+        remote_data_provider_, [this](WasmHandleSharedPtr wasm) { base_wasm_ = wasm; }, create_root
+#if defined(HIGRESS)
+        ,
+        &runtime_
+#endif
+    );
     plugin_handle_ = getOrCreateThreadLocalPlugin(
         base_wasm_, plugin_, dispatcher_,
         [this, create_root](Wasm* wasm, const std::shared_ptr<Plugin>& plugin) {
@@ -108,6 +116,9 @@ public:
   NiceMock<Event::MockDispatcher> dispatcher_;
   NiceMock<Upstream::MockClusterManager> cluster_manager_;
   NiceMock<Init::MockManager> init_manager_;
+#if defined(HIGRESS)
+  NiceMock<Runtime::MockLoader> runtime_;
+#endif
   WasmHandleSharedPtr base_wasm_; // Keep base_wasm alive for recover callback
   WasmHandleSharedPtr wasm_;
   PluginSharedPtr plugin_;

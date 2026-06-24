@@ -1471,6 +1471,7 @@ WasmResult Context::setProperty(std::string_view path, std::string_view value) {
   if (path == WasmRebuildKey) {
     if (wasm_) {
       wasm_->setShouldRebuild(true);
+      wasm()->markReclaimEligible();
       ENVOY_LOG(debug, "Wasm rebuild flag set by plugin");
     }
     return WasmResult::Ok;
